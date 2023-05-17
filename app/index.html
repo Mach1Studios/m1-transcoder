@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html class="dark">
+
+<head>
+	<link rel="stylesheet" href="style.css">
+	<link rel="stylesheet" href="fonts.css">
+	<link rel="stylesheet" href="downloader.css">
+<!--
+	<link rel="stylesheet" href="progressbar.css">
+-->
+</head>
+<body>
+	<script src="jquery.min.3.1.0.js" onload="window.$ = window.jQuery = module.exports;"></script>
+	<script src="convertProcesses.js"></script>
+	<script src="converter.js"></script>
+	<script src="downloader.js"></script>
+
+	<div class="topnav">
+	</div>
+
+	<div id="options" class="form-wrapper dark">
+
+		<label class="text">
+			<div class="title">Input</div>
+		</label>
+
+		<label class="text" id="Audio">
+			<div>Input Spatial Audio</div>
+			<div class="input-wrapper">
+				<input type="text" placeholder="Drop or Load Mach1 Spatial File" />
+				<input type="submit" value="Load">
+			</div>
+		</label>
+
+		<label class="text" id="StereoAudio" >
+			<div>Input Static Stereo</div>
+			<div class="input-wrapper">
+				<input type="text" placeholder="Drop or Load Static Stereo File" />
+				<input type="submit" value="Load">
+			</div>
+		</label>
+
+		<label class="text" id="JsonInput" >
+			<div>Input JSON</div>
+			<div class="input-wrapper">
+				<input type="text" placeholder="Drop or Load JSON File" />
+				<input type="submit" value="Load">
+			</div>
+		</label>
+
+		<label class="text" id="Video">
+			<div>Input Video</div>
+			<div class="input-wrapper">
+				<input type="text" placeholder="Drop or Load Video" />
+				<input type="submit" value="Load">
+			</div>
+		</label>
+
+<!-- divider -->
+		<div class="divider">&nbsp;</div>
+
+		<label class="text">
+			<div class="title" style="margin-top: 10px">Output</div>
+		</label>
+
+		<label class="text" id="OutputVideo" style="display: none;">
+			<div>Output File Destination</div>
+			<div class="input-wrapper">
+				<input type="text" />
+				<input type="submit" value="Set">
+			</div>
+		</label>
+
+		<label class="dropdown" id="OutputType">
+			<div>Output Spatial Format</div>
+			<div class="input-wrapper">
+				<select size="1">
+					<option value="" disabled selected>Choose Spatial Format</option>
+					<option value="1">Mach1 Spatial</option>
+					<option value="26">Mach1 Spatial [SamsungVR Sideload 4x2]</option>
+					<option value="2">Mach1 Horizon</option>
+					<option value="3">Mach1 Horizon Pairs (Single Stream)</option>
+					<option value="4">Mach1 Horizon Pairs / Quad-Binaural (Multiple Streams)</option>
+					<option value="25">Mach1 Spatial SDK, Unity & Unreal Engine: 8x Mono files</option>
+					<option value="5">First Order Ambisonic ACNSN3D [Including YouTube]</option>
+					<option value="6">First Order Ambisonic FuMa</option>
+					<option value="13">FB360/TBE (8ch) [wav]</option>
+					<option value="7">Second Order Ambisonic ACNSN3D</option>
+					<option value="8">Second Order Ambisonic FuMa</option> 
+<!--
+					<option value="14">Third Order Ambisonic ACNSN3D</option>
+					<option value="15">Third Order Ambisonic FuMa</option>
+-->
+					<option value="23">5.0 Surround (L,C,R,Ls,Rs)</option>
+					<option value="27">Apple Spatial 5.1-side (L,R,C,LFE,SL,SR)</option>
+					<option value="9">5.1 Surround (L,C,R,Ls,Rs,LFE)</option>
+					<option value="10">5.1 Surround SMPTE (L,R,C,LFE,Ls,Rs)</option>
+					<option value="11">5.1 Surround DTS (L,R,Ls,Rs,C,LFE)</option>
+					<option value="21">5.0.2 Surround (L,C,R,Ls,Rs,Lts,Rts)</option>  
+					<option value="16">5.1.2 Surround (L,C,R,Ls,Rs,LFE,Lts,Rts)</option>  
+					<option value="22">5.0.4 Surround (L,C,R,Ls,Rs,FLts,FRts,BLts,BRts)</option>  
+					<option value="17">5.1.4 Surround (L,C,R,Ls,Rs,LFE,FLts,FRts,BLts,BRts)</option> 
+					<option value="24">7.0 Surround (L,C,R,Lss,Rss,Lsr,Rsr)</option>
+					<option value="12">7.1 Surround (L,C,R,Lss,Rss,Lsr,Rsr,LFE)</option>
+					<option value="18">7.1 Surround SDDS (L,Lc,C,Rc,R,Ls,Rs,LFE)</option> 
+					<option value="19">7.1.2 Surround (L,C,R,Lss,Rss,Lsr,Rsr,LFE,Lts,Rts)</option>  
+					<option value="20">7.1.4 Surround (L,C,R,Lss,Rss,Lsr,Rsr,LFE,FLts,FRts,BLts,BRts)</option>
+					<option value="28">7.1.2 ADM / Dolby Atmos Channel-Bed (L, R, C, LFE, Lss, Rss, Lrs, Rrs, Lts, Rts)</option>
+					<option value="99" disabled>Custom Multichannel Format (JSON)</option>
+				</select>
+			</div>
+		</label>
+
+		<label class="dropdown" id="OutputFileType">
+			<div>Output file type</div>
+			<div class="input-wrapper">
+				<select size="1">
+					<option value="" disabled selected>Choose File Type</option>
+					<option value="1">Audio Only Compressed - .m4a</option>
+					<option value="11">Audio Only Compressed - .ogg</option>
+<!--
+					 <option value="13">Audio Only Compressed - .opus</option>
+TODO: Add opus  -->
+					<option value="2">Audio Only Uncompressed - .wav</option>
+<!--
+					 <option value="12">Audio Only Uncompressed - .aif</option>
+TODO: Add aif  -->
+					<option value="3">Video & Audio Compressed - .mp4</option>
+					<option value="14">Video (generated) & Audio Compressed - .mp4</option>
+					<option value="5">Video & Audio Compressed - Monoscopic .mp4 [Youtube]</option>
+					<option value="6">Video & Audio Compressed - Stereoscopic Top/Bottom .mp4 [Youtube]</option>
+					<option value="7">Video & Audio Compressed - Stereoscopic Left/Right .mp4 [Youtube]</option>
+					<option value="4">Video & Audio Uncompressed - .mov</option>
+					<option value="8">Video & Audio Uncompressed - Monoscopic .mov [Youtube]</option>
+					<option value="9">Video & Audio Uncompressed - Stereoscopic Top/Bottom .mov [Youtube]</option>
+					<option value="10">Video & Audio Uncompressed - Stereoscopic Left/Right .mov [Youtube]</option>
+				</select>
+			</div>
+		</label>
+
+		<label class="text">
+			<div class="input-wrapper" style="margin-top: 15px; margin-bottom: 10px;">
+				<input type="submit" id="Render" value="Render">
+				<div id="MessageSuccess" style="">
+					<input type="submit" id="Preview" value="Preview"  style="margin-right: 20px;">
+					<input type="submit" id="Reveal" value="Reveal in Finder" style="margin-right: 20px;">
+				</div>
+			</div>
+		</label>
+
+		<label id="progressbarDialog" class="text" style="visibility: hidden;" style="padding-top: 10px;">
+			<div class="progressbarcontainer">
+				<span class="progressbar" id="progressbarMain"></span>
+			</div>
+		</label>
+
+		<!-- m1 logo -->
+		<div class="logo">
+			<img src="assets/mach1logo.png" alt="mach1_logo" width="40.25" height="9.75">
+		</div>
+		<div class="appid">TRANSCODER</div>
+
+		<label class="text" id="MessageError">
+			<div>Error:</div>
+			<div class="input-wrapper">
+				<span>error</span>
+			</div>
+		</label>
+
+		<div id="downloader" style="display: none;">
+			<div class="dialog">
+				<label class="text">
+					<div class="title">Downloading Dependencies...</div>
+				</label>
+				<progress max="100" value="0" class="html5">
+						<div class="progress-bar">
+							<span style="width: 80%">80%</span>
+						</div>
+				</progress>
+			</div>
+		</div>
+
+	</div>
+
+	<div type="text" id="dragAudio" style=" ">
+		<p>drag spatial audio here</p>
+	</div>
+	<div type="text" id="dragStereo" style=" ">
+		<p>optional: drag static stereo here</p>
+	</div>
+	<div type="text" id="dragJson" style=" ">
+		<p>optional: drag JSON format here</p>
+	</div>
+	<div type="text" id="dragVideo" style=" ">
+		<p>optional: drag video here</p>
+	</div>
+
+</body>
+</html>

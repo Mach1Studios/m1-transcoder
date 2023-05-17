@@ -1,0 +1,387 @@
+.clear {
+  height: 0px;
+  clear: both;
+}
+
+body {
+  overflow-y : hidden;
+  font-family: "SoinSansPro-Roman";
+}
+
+.topnav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 18px;
+  width: 100%;
+  -webkit-app-region: drag;
+}
+
+.hr {
+  display: block;
+  height: 1px;
+  border: 0;
+  border-top: 1px solid #333333;
+  margin: 1em 0;
+  padding: 0;
+}
+
+.appid {
+  position: fixed;
+  bottom: 10px;
+  right: 20px;
+  pointer-events: none;
+  font-size: 10px;
+  color: #666666;
+}
+
+.logo {
+  position: fixed;
+  bottom: 10px;
+  left: 20px;
+  pointer-events: none;
+}
+
+#MessageSuccess, #MessageError {
+  margin-top: 50px;
+  display: none;
+}
+
+#MessageSuccess span:not(:only-child) {
+  color: #FFC61E;
+}
+
+#MessageError span:not(:only-child) {
+  color: #FFC61E;
+}
+
+#MessageError .input-wrapper span {
+  text-align: left;
+}
+
+.form-wrapper {
+  float: left;
+  width: 100%;
+  background: #FFFFFF;
+  overflow: hidden;
+}
+
+.form-wrapper label, .form-wrapper .radio-check-label {
+  width: 100%;
+  float: left;
+}
+
+.form-wrapper label span, .form-wrapper .notes, .form-wrapper .radio-check-label span.label {
+  float: left;
+  width: 25%;
+  text-align: center;
+}
+
+.form-wrapper label div {
+  line-height: 24px;
+}
+
+.form-wrapper label div:first-child:not(.title) {
+  line-height: 30px;
+  text-transform: uppercase;
+  font-size: 0.95em;
+}
+
+div.input-wrapper {
+  width: 100%;
+  float: left;
+  padding-bottom:10px;
+  /*padding:0 0.625em;*/;
+}
+
+.form-wrapper input, .form-wrapper select, .form-wrapper textarea, form-wrapper .radio {
+  height: 36px;
+  padding: 0;
+  margin: 0;
+  
+}
+
+.form-wrapper input[type="text"], .form-wrapper select {
+  padding-left: 10px;
+  height: 30px;
+}
+
+.form-wrapper input {
+  width: 70%;
+}
+
+.form-wrapper input::placeholder {
+  color: #cccbcb;
+}
+
+.form-wrapper select {
+  width: 100%;
+}
+
+.form-wrapper input[type=reset], input[type=submit] {
+  max-width: 25%;
+  float: right;
+  font-weight: 300;
+  border: none;
+  text-transform: uppercase;
+  height: 30px;
+}
+
+.form-wrapper .text .title {
+  color: #676767;
+  font-size: 0.95em;
+  text-transform: uppercase;
+}
+
+.form-wrapper .radio, .form-wrapper .checkbox {
+  position: relative;
+}
+
+.form-wrapper .radio span, .form-wrapper .checkbox span {
+  width: 90%;
+  text-align: left;
+  padding-left: 1.5em;
+}
+
+.form-wrapper .radio input, .form-wrapper .checkbox input {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1em;
+  height: 1em;
+}
+
+.form-wrapper .notes {
+  margin-top: 1em;
+  width: 100%;
+  text-align: left;
+}
+
+/* DOWN HERE: Only theming */ 
+ 
+/* Dark Theme -----------------    */
+html.dark {
+  background: #282828;
+}
+
+.form-wrapper.dark {
+  background: #282828;
+  font-weight: 100;
+  font-size: 11pt;
+  line-height: 14px;
+  color: #cccbcb;
+  padding: 1em 0;
+}
+/* TEXT & TEXTAREA */
+.dark label.text input, .dark label.text textarea {
+  font-weight: 100;
+  background: #333333;
+  /*box-shadow:0 1px 4px rgba(0, 0, 0, 0.3) inset, 0 1px rgba(255, 255, 255, 0.06);*/
+  border: 0 none;
+  border-radius: 0px;
+  color: #cccbcb;
+  transition: background .2s;
+}
+/* DROPDOWN & MULTIPLE*/
+.dark label.dropdown select, .dark label.multiple select {
+  font-weight: 100;
+  background: #333333;
+  /*box-shadow:0 1px 4px rgba(0, 0, 0, 0.3) inset, 0 1px rgba(255, 255, 255, 0.06);*/
+  color: #cccbcb;
+  border: 0 none;
+  border-radius: 0px;
+  transition: background .2s;
+}
+
+.dark label.multiple select {
+  padding-bottom: 1.875em;
+}
+
+.dark label.dropdown select option, .dark label.multiple select option {
+  margin-bottom: 0.625em 1%;
+  cursor: pointer;
+  transition: all .2s;
+}
+
+.dark label.dropdown select:focus, .dark label.multiple select:focus, .dark label.dropdown select:focus option, .dark label.multiple select:focus option {
+}
+/* RADIO & CHECKBOX */
+.dark .radio-check-label label {
+  background: #000;
+  background: rgba(0,0,0,0.16);
+  box-shadow: 0 1px rgba(255, 255, 255, 0.06);
+  display: block;
+  border: 0 none;
+  border-radius: 3px;
+  line-height: 1em;
+  cursor: pointer;
+  overflow: hidden;
+  margin-bottom: 0.5em;
+}
+
+.dark .radio-check-label label input {
+  opacity: 0.01;
+}
+
+.dark .radio-check-label label span {
+  display: block;
+  padding: 0.563em 15% 0.563em 1.875em;
+  transition: all .2s;
+  border-radius: 3px;
+}
+
+.dark .radio-check-label label span:before {
+  content: "";
+  display: block;
+  width: 12px;
+  height: 12px;
+  background: #000;
+  background: rgba(0,0,0,0.2);
+  position: absolute;
+  left: 8px;
+  top: 11px;
+  border: 1px solid #373431;
+}
+
+.dark .radio-check-label label.radio span:before {
+  border-radius: 8px;
+}
+
+.dark .radio-check-label label.checkbox span:before {
+  border-radius: 2px;
+}
+
+.dark .radio-check-label input:checked ~ span:before {
+  background: #FFF;
+  border-width: 0px;
+}
+
+.dark .radio-check-label input:checked ~ span {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3) inset, 0 1px rgba(255, 255, 255, 0.06);
+  background: #000;
+  background: rgba(0,0,0,0.1);
+  color: #FFF;
+}
+/* SUBMIT & RESET */
+.dark input[name=submit], .dark input[name=reset] {
+  margin-right: 0.563em;
+  margin-top: 2.50em;
+  font-size: 1em;
+  border: 0 none;
+  background: #000;
+  background: rgba(0,0,0,0.2);
+  color: #BBBBBB;
+  border-radius: 3px;
+  padding: 0.563em 4em;
+  cursor: pointer;
+  box-shadow: 0 1px rgba(255, 255, 255, 0.06);
+  transition: background 0.2s;
+}
+
+.dark input[name=submit] {
+  padding: 0.563em 6em;
+}
+
+.dark input[name=submit]:hover, .dark input[name=reset]:hover {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3) inset, 0 1px rgba(255, 255, 255, 0.06);
+  color: #FFF;
+}
+
+.dark input[name="reset"]:hover {
+  background: rgba(140,29,4,0.3);
+}
+
+.dark input[name="submit"]:hover {
+  background: rgba(51,102,77,0.3);
+}
+
+/* FOCUS */
+.dark label.text input:focus, .dark label.text textarea:focus {
+  background: #000;
+  background: rgba(0,0,0,0.25);
+  color: #FFF;
+}
+/* Dark Theme END ----------------- */
+
+/* Options */
+#options {
+  margin: 0 0 2em 0;
+}
+
+#dragAudio,
+#dragStereo,
+#dragJson,
+#dragVideo {
+  display: none;
+  top: 0px;
+  left: 0px;
+  position: absolute;
+  height: 35%;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.55);
+  color: white;
+  text-align: center;
+}
+
+#dragStereo,
+#dragJson {
+  top: 35%;
+  width: 50%;
+}
+
+#dragJson {
+  left: 50%;
+}
+
+#dragVideo {
+  top: 70%;
+  height: 30%;
+}
+
+#dragAudio:hover,
+#dragStereo:hover,
+#dragJson:hover,
+#dragVideo:hover,
+#dragAudio.hovered,
+#dragStereo.hovered,
+#dragJson.hovered,
+#dragVideo.hovered {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+#dragAudio p,
+#dragStereo p,
+#dragJson p,
+#dragVideo p {
+  top: 30%;
+  position: relative;
+  line-height: 0px;
+}
+
+.progressbarcontainer {
+  background: #5c6665;
+  position: relative;
+  width: 100%;
+  height: 5px;
+  margin-top: 5px;
+  display: block;
+  -webkit-border-radius: 5px;
+  -moz-border-radius: 5px;
+  -ms-border-radius: 5px;
+  border-radius: 5px;
+}
+
+.progressbar {
+  position: absolute;
+  width: 0%;
+  height: 100%;
+  -webkit-border-radius: 5px;
+  -moz-border-radius: 5px;
+  -ms-border-radius: 5px;
+  border-radius: 5px;
+  background-color: #ffc947;
+}
+
+#progressbarMain {
+    width: 0%;
+}
