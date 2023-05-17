@@ -1,2 +1,36 @@
 # m1-transcoder
+
 Frontend Mach1 Transcode application that utilizes m1-transcode and other dependencies to prepare multichannel audio/video deliverables
+
+### Installation
+
+First prepare your electron development environment:
+
+To clone and run this repository you'll need [Git](https://git-scm.com) and [Node.js](https://nodejs.org/en/download/) (which comes with [npm](http://npmjs.com)) installed on your computer. From your command line:
+
+- Requires Python 3.10 or less, if you have 3.11 installed please remove it to properly compile (https://stackoverflow.com/questions/74715990/node-gyp-err-invalid-mode-ru-while-trying-to-load-binding-gyp)
+
+```bash
+cd to_m1transcoder_path
+# Install dependencies
+npm install
+
+# install Electron Packager for use from cli
+npm install electron-packager -g
+npm install electron-builder --save-dev
+
+# install & recompile fibers
+npm install fibers
+npm install --save-dev electron-rebuild
+
+# rebuild fibers for macOS
+./node_modules/.bin/electron-rebuild
+
+# rebuild fibers for windows
+node_modules\.bin\electron-rebuild.cmd
+
+# package macOS app
+npm run package-mac
+# package windows app
+npm run package-win
+```

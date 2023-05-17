@@ -1,0 +1,34 @@
+#downloader {
+	position: absolute;
+	top: 0px;
+	left: 0px;
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+	background: rgba(0, 0, 0, 0.9);
+}
+
+#downloader .dialog {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	-webkit-transform: translate(-50%, -50%);
+	transform: translate(-50%, -50%);
+}
+
+#downloader progress[value] {
+	-webkit-appearance: none;
+	appearance: none;
+	width: 250px;
+	height: 20px;
+}
+
+#downloader progress[value]::-webkit-progress-bar {
+	background-color: rgba(255, 255, 255, 0.3);
+	border-radius: 2px;
+	box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5) inset;
+}
+
+#downloader progress[value]::-webkit-progress-value {
+	background-color: #ffc947;
+}
