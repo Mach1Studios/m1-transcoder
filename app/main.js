@@ -60,16 +60,10 @@ ipcMain.on('get-download-folder', (event) => {
   event.returnValue = downloadFolder;
 });
 
-// Check updates
-if (fs.existsSync(dataPath + (isWin ? "M1-Notifier/M1-Notifier.exe" : "M1-Notifier.app"))) {
-	shell.openPath(dataPath + (isWin ? "M1-Notifier/M1-Notifier.exe" : "M1-Notifier.app"));
-}
-
 const DownloadManager = require("electron-download-manager");
 DownloadManager.register({
 	downloadFolder: dataPath
 }); // "binaries"});
-
 
 ipcMain.on('start-download', (event, url) => {
 	DownloadManager.download({url: url, onProgress : (progress, item) => {
