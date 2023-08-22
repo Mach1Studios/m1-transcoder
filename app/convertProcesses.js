@@ -1,8 +1,7 @@
-const electron = require('electron')
-const app = electron.remote.app
+const { ipcRenderer } = require('electron')
 
-const path = require("path");
-const Fiber = require('fibers');
+const util = require('util');
+const exec = util.promisify(require('child_process').exec);
 
 var child_process = require('child_process');
 
@@ -30,25 +29,17 @@ function unescapingPath(par) {
 	return (par.match(/"?(.*?)"?$/))[1];
 }
 
-function runExec(callString) {
-	var fiber = Fiber.current;
-	var res = false;
-	const exec = require('child_process').exec; //Sync;
 
-	exec(callString,
-		function(error, stdout, stderr) {
-			if (error) {
-				alert("Failed!");
-				log.error(error.message);
-				res = false;
-			} else {
-				res = true;
-			}
-			fiber.run();
-		});
-
-	Fiber.yield();
-	return res;
+async function runExec(callString) {
+  try {
+    const { stdout } = await exec(callString, { encoding: 'utf-8' });
+    console.log('Command executed successfully:', stdout);
+    return true;
+  } catch (error) {
+    console.error('Failed!');
+    console.error(error.message);
+    return false;
+  }
 }
 
 function runProcess(processData) {
@@ -56,9 +47,9 @@ function runProcess(processData) {
 		execFile
 	} = require('child_process');
 	const isWin = process.platform === "win32";
-	const scriptPath = path.dirname(require.main.filename)
+	const scriptPath = ipcRenderer.sendSync('get-script-path') 
 	const scriptPathClean = scriptPath.replace(/ /g, '\\ ')
-	const dataPath = path.join(app.getPath('appData'), 'Mach1 Spatial System/')
+	const dataPath = path.join(ipcRenderer.sendSync('get-app-data-path'), 'Mach1 Spatial System/')
 	const m1transcode = '"' + dataPath + (isWin ? "m1-transcode-win-x64/m1-transcode.exe" : "m1-transcode-osx-x64/m1-transcode") + '"';
 	const ffmpeg = '"' + dataPath + (isWin ? "ffmpeg.exe" : "ffmpeg") + '"'; // scriptPathClean + "/../binaries/ffmpeg" + (isWin ? ".exe" : "")
 	const ytmeta = '"' + dataPath + "spatialmedia/" + '"';
@@ -1055,11 +1046,11 @@ function runProcess(processData) {
 	return false;
 };
 
-function performSetOfProcesses(data) {
+async function performSetOfProcesses(data) {
 	for (var i = 0; i < data.length; i++) {
 		log.info("process " + i + " - " + data[i]["process_kind"]);
 
-		var processResult = runProcess(data[i]);
+		var processResult = await runProcess(data[i]);
 
 		if (!processResult) {
 			log.error("failed at process " + i);

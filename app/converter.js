@@ -2,7 +2,7 @@
 document.addEventListener('dragover', event => event.preventDefault())
 document.addEventListener('drop', event => event.preventDefault())
 
-$(document).ready(function() {
+$(document).ready(async function() {
 	window.inputAudioFiles = [];
 	window.inputStereoFiles = [];
 	window.inputVideoFiles = [];
@@ -135,10 +135,10 @@ $(document).ready(function() {
 	function checkSpatialAudioInput() {
 		const exec = require('child_process').execSync;
 
-		const scriptPath = path.dirname(require.main.filename);
+		const scriptPath = ipcRenderer.sendSync('get-script-path');
 		const scriptPathClean = scriptPath.replace(/ /g, '\\ ');
 		const isWin = process.platform === "win32";
-		const dataPath = path.join(app.getPath('appData'), 'Mach1 Spatial System/');
+		const dataPath = path.join(ipcRenderer.sendSync('get-app-data-path'), 'Mach1 Spatial System/');
 		const ffmpeg = '"' + dataPath + (isWin ? "ffmpeg.exe" : "ffmpeg") + '"'; // scriptPathClean + "/../binaries/ffmpeg" + (isWin ? ".exe" : "")
 
 		for (let filePath of window.inputAudioFiles) {
@@ -451,20 +451,14 @@ $(document).ready(function() {
 		$('#MessageSuccess,#MessageError').hide();
 	}
 
-	const remote = require('electron').remote;
-	const dialog = remote.require('electron').dialog;
+	const { ipcRenderer } = require('electron');
 	const fs = require('fs');
 
 	function AddOpenFileHandler(selector, extensions, inputFiles, checkFunc) {
 		var obj = $(selector + ' input[type="submit"]');
-		obj.click(function() {
-			dialog.showOpenDialog({
-				filters: [{
-					name: 'text',
-					extensions: extensions
-				}],
-				properties: ['openFile', 'multiSelections']
-			}, function(filenames) {
+		obj.click(async function() {
+			try {
+				const filenames = await ipcRenderer.invoke('show-open-dialog', extensions);
 				if (typeof filenames != 'undefined') {
 					log.info("Number of Input Files: " + filenames.length);
 					obj.parent().children('input[type="text"]').val(filenames[0]);
@@ -476,19 +470,25 @@ $(document).ready(function() {
 					}
 					checkFunc();
 				}
-			});
+			} catch (error) {
+				console.error('Error:', error);
+			}
 		});
 	}
 
 	function SaveFile(obj) {
 		var def = new jQuery.Deferred();
-		dialog.showSaveDialog({}, function(filename) {
+		ipcRenderer.invoke('show-save-dialog').then(filename => {
 			if (typeof filename != 'undefined') {
 				log.info("Output Filename:", filename);
 				obj.parent().children('input[type="text"]').val(filename);
 				def.resolve();
 			}
+		}).catch(error => {
+			console.error('Error:', error);
+			def.reject(error);
 		});
+
 		return def.promise();
 	}
 
@@ -511,7 +511,7 @@ $(document).ready(function() {
 
 	$('#Preview').click(function() {
 		const exec = require('child_process').exec; //Sync;
-		var scriptPath = path.dirname(require.main.filename);
+		const scriptPath = ipcRenderer.sendSync('get-script-path') ;
 		var scriptPathClean = scriptPath.replace(/ /g, '\\ ')
 		var player = scriptPathClean + "/binaries/m1previewplayer.app/Contents/MacOS/m1previewplayer";
 		// if (!fs.existsSync(player)) {
@@ -554,9 +554,9 @@ $(document).ready(function() {
 			// removing temp files
 			const execSync = require('child_process').execSync;
 			try {
-				const dataPath = path.join(app.getPath('appData'), 'Mach1 Spatial System/');
+				const dataPath = path.join(ipcRenderer.sendSync('get-app-data-path'), 'Mach1 Spatial System/');
 
-				var scriptPath = path.dirname(require.main.filename);
+				const scriptPath = ipcRenderer.sendSync('get-script-path') ;
 				var scriptPathClean = scriptPath.replace(/ /g, '\\ ');
 				var tempDir = dataPath + 'temp/' // scriptPathClean + "/../.."
 
@@ -9995,12 +9995,15 @@ $(document).ready(function() {
 						break;
 				}
 			}
+						
+						
 
-			Fiber(function() {
-				log.info('rendering... ' + new Date);
+			(async () => {
+			  try {
+				log.info('rendering... ' + new Date());
 
 				ShowProgressbar();
-				if (performSetOfProcesses(processingRequest)) {
+				if (await performSetOfProcesses(processingRequest)) {
 					// clear up
 					$('#Audio input[type="text"]').val("");
 					$('#StereoAudio input[type="text"]').val("");
@@ -10013,7 +10016,11 @@ $(document).ready(function() {
 				}
 				HideProgressbar();
 				log.info('Render Complete: ' + new Date);
-			}).run();
+			  } catch (error) {
+				console.error('An error occurred:', error);
+			  }
+			})();			
+
 		};
 
 		var outputVideoInput = $('#OutputVideo input[type="text"]');

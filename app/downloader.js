@@ -1,14 +1,15 @@
 const fs = require('fs');
+const path = require('path');
 const extract = require('extract-zip');
 var mv = require('mv');
 var rimraf = require("rimraf");
 
 var isWin = process.platform === "win32";
 
-var scriptPath = path.dirname(require.main.filename)
+const scriptPath = ipcRenderer.sendSync('get-script-path')
 var scriptPathClean = scriptPath.replace(/ /g, '\\ ')
 
-const dataPath = path.join(app.getPath('appData'), 'Mach1 Spatial System/');
+const dataPath = path.join(ipcRenderer.sendSync('get-app-data-path'), 'Mach1 Spatial System/');
 const ffmpeg = '"' + dataPath + (isWin ? "ffmpeg.exe" : "ffmpeg") + '"'; // scriptPathClean + "/../binaries/ffmpeg" + (isWin ? ".exe" : "")
 const FFMPEG_ARCHIVE_URL = (isWin ? "https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v4.1/ffmpeg-4.1-win-64.zip" : "https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v4.1/ffmpeg-4.1.7-osx-64.zip");
 const FFMPEG_ARCHIVE_FILENAME = (isWin ? "ffmpeg-4.1-win-64.zip" : "ffmpeg-4.1.7-osx-64.zip");
@@ -22,7 +23,7 @@ const SPATIALMEDIA_DIR = "spatial-media-master";
 const SPATIALMEDIA_FILENAME = SPATIALMEDIA_DIR + ".zip";
 const spatialmediaDir = '"' + dataPath + SPATIALMEDIA_DIR + '"';
 
-function CheckForDependenciesAndDownload() {
+async function CheckForDependenciesAndDownload() {
 	
 	// check ffmpeg
 	if (!fs.existsSync(ffmpeg.split('"').join(''))) {
@@ -30,38 +31,48 @@ function CheckForDependenciesAndDownload() {
 		$("#downloader").css("display", "");
 		$("#downloader progress").attr('value', 0);
 
-		// download ffmpeg
-		require("electron").remote.require("electron-download-manager").download({
-			url: FFMPEG_ARCHIVE_URL,
-			onProgress: (progress, item) => {
-				log.info("progress: " + progress);
-				$("#downloader progress").attr('value', progress);
-			}
-		}, function(error, info) {
-			if (error) {
-				log.error(error);
-				return;
-			}
+		log.info(FFMPEG_ARCHIVE_FILENAME);
 
-			// unzip
-			extract(dataPath + path.basename(FFMPEG_ARCHIVE_URL), {
-				dir: dataPath
-			}, function(err) {
-				if (fs.existsSync(ffmpeg.split('"').join(''))) {
-					// delete files
-					fs.unlink(dataPath + path.basename(FFMPEG_ARCHIVE_FILENAME), function(err) {
-						if (err) throw err;
-						// if no error, file has been deleted successfully
-						log.info(dataPath + path.basename(FFMPEG_ARCHIVE_FILENAME) + ' deleted!');
-					});
-				}
+		// download ffmpeg
+		const response = await new Promise((resolve, reject) => {
+			ipcRenderer.once('download-complete', (event, response) => {
+			
+				// unzip
+				extract(dataPath + path.basename(FFMPEG_ARCHIVE_URL), {
+					dir: dataPath
+				}, function(err) {
+					if (fs.existsSync(ffmpeg.split('"').join(''))) {
+						// delete files
+						fs.unlink(dataPath + path.basename(FFMPEG_ARCHIVE_FILENAME), function(err) {
+							if (err) throw err;
+							// if no error, file has been deleted successfully
+							log.info(dataPath + path.basename(FFMPEG_ARCHIVE_FILENAME) + ' deleted!');
+						});
+					}
+				});
+
+				// hide dialog
+				$("#downloader").css("display", "none");
+				log.info("DONE: " + FFMPEG_ARCHIVE_FILENAME);
+				
+				resolve(response);
 			});
 
-			// hide dialog
-			$("#downloader").css("display", "none");
-			log.info("DONE: " + info.url);
+			ipcRenderer.once('download-error', (event, response) => {
+			  log.error(response);
+			  resolve(response);
+			});
+
+			ipcRenderer.on('on-progress', (event, progress) => {
+			  log.info("progress: " + progress);
+			  $("#downloader progress").attr('value', progress);
+			});
+
+			ipcRenderer.send('start-download', FFMPEG_ARCHIVE_URL );
 		});
+	
 	}
+
 
 	// check m1-transcode
 	if (!fs.existsSync(m1transcode.split('"').join(''))) {
@@ -72,40 +83,47 @@ function CheckForDependenciesAndDownload() {
 		log.info(M1TRANSCODE_ARCHIVE_FILENAME);
 
 		// download m1-transcode
-		require("electron").remote.require("electron-download-manager").download({
-			url: M1TRANSCODE_ARCHIVE_URL,
-			onProgress: (progress, item) => {
-				log.info("progress: " + progress);
-				$("#downloader progress").attr('value', progress);
-			}
-		}, function(error, info) {
-			if (error) {
-				log.error(error);
-				return;
-			}
+		const response = await new Promise((resolve, reject) => {
+			ipcRenderer.once('download-complete', (event, response) => {
+			
+				// unzip
+				extract(dataPath + path.basename(M1TRANSCODE_ARCHIVE_URL), {
+					dir: dataPath
+				}, function(err) {
+					if (fs.existsSync(ffmpeg.split('"').join(''))) {
+						// delete files
+						fs.unlink(dataPath + path.basename(M1TRANSCODE_ARCHIVE_FILENAME), function(err) {
+							if (err) throw err;
+							// if no error, file has been deleted successfully
+							log.info(dataPath + path.basename(M1TRANSCODE_ARCHIVE_FILENAME) + ' deleted!');
+						});
+					}
+				});
 
-			// unzip
-			extract(dataPath + path.basename(M1TRANSCODE_ARCHIVE_URL), {
-				dir: dataPath
-			}, function(err) {
-				if (fs.existsSync(m1transcode.split('"').join(''))) {
-					// delete files
-					fs.unlink(dataPath + path.basename(M1TRANSCODE_ARCHIVE_FILENAME), function(err) {
-						if (err) throw err;
-						// if no error, file has been deleted successfully
-						log.info(dataPath + path.basename(M1TRANSCODE_ARCHIVE_FILENAME) + ' deleted!');
-					});
-				}
+				// hide dialog
+				$("#downloader").css("display", "none");
+				log.info("DONE: " + M1TRANSCODE_ARCHIVE_URL);
+				
+				resolve(response);
 			});
 
-			// hide dialog
-			$("#downloader").css("display", "none");
-			log.info("DONE: " + info.url);
+			ipcRenderer.once('download-error', (event, response) => {
+			  log.error(response);
+			  resolve(response);
+			});
+
+			ipcRenderer.on('on-progress', (event, progress) => {
+			  log.info("progress: " + progress);
+			  $("#downloader progress").attr('value', progress);
+			});
+
+			ipcRenderer.send('start-download', M1TRANSCODE_ARCHIVE_URL );
 		});
+	
 	}
 
 	// check google/spatialmedia
-	if (!fs.existsSync(spatialmedia.split('"').join(''))) {
+	if (!fs.existsSync(m1transcode.split('"').join(''))) {
 		// show dialog
 		$("#downloader").css("display", "");
 		$("#downloader progress").attr('value', 0);
@@ -113,48 +131,56 @@ function CheckForDependenciesAndDownload() {
 		log.info(SPATIALMEDIA_ARCHIVE_URL);
 
 		// download spatialmedia
-		require("electron").remote.require("electron-download-manager").download({
-			url: SPATIALMEDIA_ARCHIVE_URL,
-			onProgress: (progress, item) => {
-				log.info("progress: " + progress);
-				$("#downloader progress").attr('value', progress);
-			}
-		}, function(error, info) {
-			if (error) {
-				log.error(error);
-				return;
-			}
-
-			// unzip
-			extract(dataPath + SPATIALMEDIA_FILENAME, {
-				dir: dataPath
-			}, function(err) {
-				log.info("PATH: " + dataPath + SPATIALMEDIA_DIR + '/spatialmedia');
-				mv(dataPath + SPATIALMEDIA_DIR + '/spatialmedia', dataPath + '/spatialmedia', {
-					mkdirp: true
+		const response = await new Promise((resolve, reject) => {
+			ipcRenderer.once('download-complete', (event, response) => {
+			
+				// unzip
+				extract(dataPath + SPATIALMEDIA_FILENAME, {
+					dir: dataPath
 				}, function(err) {
-					// done. it first created all the necessary directories, and then
-					// tried fs.rename, then falls back to using ncp to copy the dir
-					// to dest and then rimraf to remove the source dir
+					log.info("PATH: " + dataPath + SPATIALMEDIA_DIR + '/spatialmedia');
+					mv(dataPath + SPATIALMEDIA_DIR + '/spatialmedia', dataPath + '/spatialmedia', {
+						mkdirp: true
+					}, function(err) {
+						// done. it first created all the necessary directories, and then
+						// tried fs.rename, then falls back to using ncp to copy the dir
+						// to dest and then rimraf to remove the source dir
+					});
+					if (fs.existsSync(spatialmediaDir.split('"').join(''))) {
+						// delete files
+						fs.unlink(dataPath + path.basename(dataPath + SPATIALMEDIA_FILENAME), function(err) {
+							if (err) throw err;
+							// if no error, file has been deleted successfully
+							log.info(dataPath + path.basename(dataPath + SPATIALMEDIA_FILENAME) + ' deleted!');
+						});
+						rimraf(dataPath + SPATIALMEDIA_DIR, function() {
+							log.info("Removed spatial-media dir");
+						});
+					}
 				});
-				if (fs.existsSync(spatialmediaDir.split('"').join(''))) {
-					// delete files
-					fs.unlink(dataPath + path.basename(dataPath + SPATIALMEDIA_FILENAME), function(err) {
-						if (err) throw err;
-						// if no error, file has been deleted successfully
-						log.info(dataPath + path.basename(dataPath + SPATIALMEDIA_FILENAME) + ' deleted!');
-					});
-					rimraf(dataPath + SPATIALMEDIA_DIR, function() {
-						log.info("Removed spatial-media dir");
-					});
-				}
+
+				// hide dialog
+				$("#downloader").css("display", "none");
+				log.info("DONE: " + SPATIALMEDIA_ARCHIVE_URL);
+				
+				resolve(response);
 			});
 
-			// hide dialog
-			$("#downloader").css("display", "none");
-			log.info("DONE: " + info.url);
+			ipcRenderer.once('download-error', (event, response) => {
+			  log.error(response);
+			  resolve(response);
+			});
+
+			ipcRenderer.on('on-progress', (event, progress) => {
+			  log.info("progress: " + progress);
+			  $("#downloader progress").attr('value', progress);
+			});
+
+			ipcRenderer.send('start-download', SPATIALMEDIA_ARCHIVE_URL );
 		});
+	
 	}
+ 
 }
 
 function LogDependencies() {
@@ -170,6 +196,6 @@ function LogDependencies() {
 	});
 }
 
-$(document).ready(function() {
+$(document).ready(async function() {
 	CheckForDependenciesAndDownload();
 });

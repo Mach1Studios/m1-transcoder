@@ -1,4 +1,4 @@
-const {app, BrowserWindow, Menu, shell} = require('electron')
+const {app, dialog, ipcMain, BrowserWindow, Menu, shell} = require('electron')
 const path = require('path')
 const url = require('url')
 const fs = require('fs')
@@ -11,15 +11,77 @@ const isMac = process.platform === "darwin";
 const log = require('electron-log');
 log.catchErrors(options = {});
 
+// Helper
+ipcMain.on('get-app-data-path', (event) => {
+  event.returnValue = app.getPath('appData');
+});
+
+ipcMain.handle('show-open-dialog', async (event, extensions) => {
+    try {
+        const result = await dialog.showOpenDialog({
+            filters: [{
+                name: 'text',
+                extensions: extensions
+            }],
+            properties: ['openFile', 'multiSelections']
+        });
+
+        if (result.canceled) {
+            return undefined;
+        }
+
+        return result.filePaths;
+    } catch (error) {
+        console.error('Error:', error);
+        return undefined;
+    }
+});
+
+ipcMain.handle('show-save-dialog', async () => {
+    try {
+        const result = await dialog.showSaveDialog({});
+        if (result.canceled) {
+            return undefined;
+        }
+        return result.filePath;
+    } catch (error) {
+        console.error('Error:', error);
+        return undefined;
+    }
+});
+
+ipcMain.on('get-script-path', (event) => {
+  const scriptPath = path.dirname(require.main.filename);
+  event.returnValue = scriptPath;
+});
+
+ipcMain.on('get-download-folder', (event) => {
+  const downloadFolder = app.getPath('downloads');
+  event.returnValue = downloadFolder;
+});
+
 // Check updates
 if (fs.existsSync(dataPath + (isWin ? "M1-Notifier/M1-Notifier.exe" : "M1-Notifier.app"))) {
-	shell.openItem(dataPath + (isWin ? "M1-Notifier/M1-Notifier.exe" : "M1-Notifier.app"));
+	shell.openPath(dataPath + (isWin ? "M1-Notifier/M1-Notifier.exe" : "M1-Notifier.app"));
 }
 
 const DownloadManager = require("electron-download-manager");
 DownloadManager.register({
 	downloadFolder: dataPath
 }); // "binaries"});
+
+
+ipcMain.on('start-download', (event, url) => {
+	DownloadManager.download({url: url, onProgress : (progress, item) => {
+		event.sender.send('on-progress', progress);
+	}}, (error, info) => {
+		if (error) {
+		  event.sender.send('download-error', error.message);
+		} else {
+		  event.sender.send('download-complete', info.filePath);
+		}
+  });
+});
 
 if (!fs.existsSync(dataPath)) {
 	fs.mkdirSync(dataPath);
@@ -100,7 +162,8 @@ function createWindow() {
 	mainWindow = new BrowserWindow({
 		width: 505,
 		height: 635,
-		titleBarStyle: 'hidden-inset'
+		titleBarStyle: 'hidden-inset',
+		webPreferences: { nodeIntegration: true, contextIsolation: false }
 	})
 
 	// and load the index.html of the app.
