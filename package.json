@@ -17,9 +17,19 @@
     "npmRebuild": "false",
     "appId": "com.mach1.transcoder",
     "mac": {
-      "icon": "../resources/icon.icns",
+      "icon": "app/assets/mac/icon.icns",
       "asar": true,
-      "target": "dir",
+      "target": [
+        {
+          "target": "mas",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "mas-dev"
+        }
+      ],
       "category": "public.app-category.utilities",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
