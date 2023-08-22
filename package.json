@@ -48,22 +48,21 @@
   "author": "Mach1",
   "license": "SEE LICENSE IN mach1-semi-open-license.md",
   "devDependencies": {
-    "electron": "^1.8.8",
-    "electron-builder": "^21.2.0",
-    "electron-notarize": "^1.0.0",
-    "electron-packager": "^13.1.1",
-    "electron-rebuild": "^1.8.5"
+    "electron": "^26.0.0",
+    "electron-builder": "^24.6.3",
+    "electron-notarize": "^1.2.2",
+    "electron-packager": "^17.1.2",
+    "electron-rebuild": "^3.2.9"
   },
   "dependencies": {
-    "asar": "^2.0.3",
-    "electron-download-manager": "^2.3.0",
+    "asar": "^3.2.0",
+    "electron-download-manager": "^2.1.2",
     "electron-is": "^3.0.0",
-    "electron-log": "^3.0.6",
-    "extract-zip": "^1.6.7",
-    "fibers": "^3.1.1",
+    "electron-log": "^4.4.8",
+    "extract-zip": "^2.0.1",
     "hazardous": "^0.3.0",
     "mv": "^2.1.1",
-    "node-gyp": "^9.3.1",
-    "rimraf": "^3.0.0"
+    "node-gyp": "^9.4.0",
+    "rimraf": "^5.0.1"
   }
 }

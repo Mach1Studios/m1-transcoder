@@ -19,16 +19,6 @@ npm install
 npm install electron-packager -g
 npm install electron-builder --save-dev
 
-# install & recompile fibers
-npm install fibers
-npm install --save-dev electron-rebuild
-
-# rebuild fibers for macOS
-./node_modules/.bin/electron-rebuild
-
-# rebuild fibers for windows
-node_modules\.bin\electron-rebuild.cmd
-
 # package macOS app
 npm run package-mac
 # package windows app
