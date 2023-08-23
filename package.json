@@ -11,7 +11,7 @@
     "package-win": "electron-builder --x64"
   },
   "osx-sign": {
-    "identity": "Developer ID Application: Drazen Bosnjak (6ZETDT84RB)"
+    "identity": "Developer ID Application: MACH 1, CORP. (6ZETDT84RB)"
   },
   "build": {
     "npmRebuild": "false",
@@ -21,7 +21,7 @@
       "asar": true,
       "target": [
         {
-          "target": "mas",
+          "target": "dir",
           "arch": [
             "universal"
           ]
