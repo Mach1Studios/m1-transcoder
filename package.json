@@ -10,12 +10,10 @@
     "package-mac": "electron-builder",
     "package-win": "electron-builder --x64"
   },
-  "osx-sign": {
-    "identity": "Developer ID Application: MACH 1, CORP. (6ZETDT84RB)"
-  },
   "build": {
     "npmRebuild": "false",
-    "appId": "com.mach1.transcoder",
+    "appId": "com.mach1.spatial.transcoder",
+    "afterSign": "scripts/notarize.js",
     "mac": {
       "icon": "app/assets/mac/icon.icns",
       "asar": true,
@@ -59,7 +57,8 @@
     "electron-builder": "^24.6.3",
     "electron-notarize": "^1.2.2",
     "electron-packager": "^17.1.2",
-    "electron-rebuild": "^3.2.9"
+    "dotenv": "^16.3.1",
+    "@electron/osx-sign": "^1.0.5"
   },
   "dependencies": {
     "asar": "^3.2.0",
