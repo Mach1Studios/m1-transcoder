@@ -2,6 +2,12 @@
 dist/
 app/fonts/
 
+## dependencies
+build/*
+app/spatialmedia
+app/m1-transcode
+*.spec
+
 ## Node
 # Logs
 logs
