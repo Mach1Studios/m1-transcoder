@@ -14,9 +14,19 @@
     "npmRebuild": "false",
     "appId": "com.mach1.spatial.transcoder",
     "afterSign": "scripts/notarize.js",
+    "extraResources": [
+      {
+        "from": "./app/extraResources/",
+        "to": "extraResources",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
     "mac": {
       "icon": "app/assets/mac/icon.icns",
       "asar": true,
+      "x64ArchFiles": "Contents/Resources/extraResources/**",
       "target": [
         {
           "target": "dir",

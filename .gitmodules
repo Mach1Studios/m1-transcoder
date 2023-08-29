@@ -1,0 +1,6 @@
+[submodule "deps/m1-transcode"]
+	path = deps/m1-transcode
+	url = git@github.com:Mach1Studios/m1-transcode.git
+[submodule "deps/spatial-media"]
+	path = deps/spatial-media
+	url = git@github.com:google/spatial-media.git

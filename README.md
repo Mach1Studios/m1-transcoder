@@ -17,6 +17,16 @@ APPLEIDPASS=
 APPLE_TEAM_ID=
 ```
 
+- [unix] Setup
+```bash
+./scripts/setup.sh # setup the dependencies
+```
+
+- [win] Setup
+```bash
+./scripts/setup.bat # setup the dependencies
+```
+
 - Install and build
 ```bash
 cd to_m1transcoder_path

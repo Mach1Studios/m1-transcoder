@@ -1,10 +1,7 @@
 const { ipcRenderer } = require('electron')
-
 const util = require('util');
 const exec = util.promisify(require('child_process').exec);
-
 var child_process = require('child_process');
-
 const log = require('electron-log');
 log.catchErrors(options = {});
 
@@ -29,7 +26,6 @@ function unescapingPath(par) {
 	return (par.match(/"?(.*?)"?$/))[1];
 }
 
-
 async function runExec(callString) {
   try {
     const { stdout } = await exec(callString, { encoding: 'utf-8' });
@@ -47,16 +43,16 @@ function runProcess(processData) {
 		execFile
 	} = require('child_process');
 	const isWin = process.platform === "win32";
-	const scriptPath = ipcRenderer.sendSync('get-script-path') 
-	const scriptPathClean = scriptPath.replace(/ /g, '\\ ')
-	const dataPath = path.join(ipcRenderer.sendSync('get-app-data-path'), 'Mach1 Spatial System/')
-	const m1transcode = '"' + dataPath + (isWin ? "m1-transcode-win-x64/m1-transcode.exe" : "m1-transcode-osx-x64/m1-transcode") + '"';
+	const exe_type = (isWin ? ".exe" : "");
+	const scriptPath = ipcRenderer.sendSync('get-script-path');
+	const scriptPathClean = scriptPath.replace(/ /g, '\\ ');
+	const dataPath = path.join(ipcRenderer.sendSync('get-app-data-path'), 'Mach1 Spatial System/');
 	const ffmpeg = '"' + dataPath + (isWin ? "ffmpeg.exe" : "ffmpeg") + '"'; // scriptPathClean + "/../binaries/ffmpeg" + (isWin ? ".exe" : "")
-	const ytmeta = '"' + dataPath + "spatialmedia/" + '"';
+	const m1transcode = '"' + dataPath + (isWin ? "m1-transcode-win-x64/m1-transcode.exe" : "m1-transcode-osx-x64/m1-transcode") + '"';
+	const ytmeta = path.join(ipcRenderer.sendSync('get-resource-path'), "extraResources", "spatialmedia", exe_type);
 
-	//macOS python call
+	//macOS temp dir setup
 	let tempDir = dataPath + 'temp/' // scriptPathClean + "/../.."
-	let tempDirBinaries = scriptPathClean + "/binaries"
 
 	if (!fs.existsSync(tempDir)) {
 		fs.mkdirSync(tempDir, {
@@ -80,6 +76,7 @@ function runProcess(processData) {
 	// 	log.error("Error: Unable to find spatialmedia: " + ytmeta)
 	// }
 
+	tempDir_notEscaped = tempDir
 	tempDir = "\"" + tempDir + "\"";
 
 	processData["input_filename"] = escapingPath(processData["input_filename"]);
@@ -578,7 +575,7 @@ function runProcess(processData) {
 			log.info(" executing " + processData["process_kind"]);
 			var call = ["cd ", tempDir,
 				"&&",
-				m1transcode, 'm1transcode -in-file "', processData["input_filename"], '" -in-fmt Cube -out-file ', processData["output_filename"], "-out-fmt Square"
+				m1transcode, 'm1transcode -in-file "', processData["input_filename"], '" -in-fmt M1Spatial -out-file ', processData["output_filename"], "-out-fmt M1Horizon"
 			];
 
 			var callString = call.join(' ');
@@ -588,7 +585,7 @@ function runProcess(processData) {
 
 		case "m1transcode_spatial2horizon_plus_stereo":
 			log.info(" executing " + processData["process_kind"]);
-			var call = [m1transcode, 'm1transcode -in-file "', processData["input_filename"], " ", processData["stereo_filename"], '" -in-fmt Cube+S -out-file output_audio.wav -out-fmt Square8',
+			var call = [m1transcode, 'm1transcode -in-file "', processData["input_filename"], " ", processData["stereo_filename"], '" -in-fmt M1Spatial_S -out-file output_audio.wav -out-fmt M1HorizonPairs',
 				"&&",
 				ffmpeg, " -y -i output_audio.wav -map_channel 0.0.0 000.wav -map_channel 0.0.1 001.wav -map_channel 0.0.2 002.wav -map_channel 0.0.3 003.wav -map_channel 0.0.4 004.wav -map_channel 0.0.5 005.wav -map_channel 0.0.6 006.wav -map_channel 0.0.7 007.wav ",
 				"&&",
@@ -804,9 +801,8 @@ function runProcess(processData) {
 			break;
 
 		case "youtube-meta":
-			var call = ["cd ", tempDir,
-				"&&",
-				"python ../spatialmedia -i --stereo=" + processData["videoScopic"], "--spatial-audio ", processData["input_filename"], " ", processData["output_video"]
+			var call = [
+				ytmeta, " -i --stereo=" + processData["videoScopic"], "--spatial-audio ", escapingPath(tempDir_notEscaped+processData["input_filename"]), " ", escapingPath(processData["output_video"])
 			];
 
 			log.info(" executing " + processData["process_kind"]);

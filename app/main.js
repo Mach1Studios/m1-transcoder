@@ -55,6 +55,10 @@ ipcMain.on('get-script-path', (event) => {
   event.returnValue = scriptPath;
 });
 
+ipcMain.on('get-resource-path', (event) => {
+	event.returnValue = process.resourcesPath;
+});
+
 ipcMain.on('get-download-folder', (event) => {
   const downloadFolder = app.getPath('downloads');
   event.returnValue = downloadFolder;
@@ -156,7 +160,8 @@ function createWindow() {
 	mainWindow = new BrowserWindow({
 		width: 505,
 		height: 635,
-		titleBarStyle: 'hidden-inset',
+		titleBarStyle: 'hiddenInset',
+		frame: false,
 		webPreferences: { nodeIntegration: true, contextIsolation: false }
 	})
 
