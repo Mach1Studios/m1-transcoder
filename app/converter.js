@@ -8338,7 +8338,7 @@ $(document).ready(async function() {
 										"output_filename": "reordered.aif"
 									});
 									processingRequest.push({
-										"process_kind": "16_channel_pcm_to_wav",
+										"process_kind": "8_channel_pcm_to_wav",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
@@ -8390,7 +8390,7 @@ $(document).ready(async function() {
 										"output_filename": "reordered.aif"
 									});
 									processingRequest.push({
-										"process_kind": "16_channel_pcm_to_wav",
+										"process_kind": "8_channel_pcm_to_wav",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
@@ -8459,7 +8459,7 @@ $(document).ready(async function() {
 										"output_filename": "reordered.aif"
 									});
 									processingRequest.push({
-										"process_kind": "16_channel_pcm_to_wav",
+										"process_kind": "8_channel_pcm_to_wav",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
@@ -8530,7 +8530,7 @@ $(document).ready(async function() {
 										"output_filename": "reordered.aif"
 									});
 									processingRequest.push({
-										"process_kind": "16_channel_pcm_to_wav",
+										"process_kind": "8_channel_pcm_to_wav",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
@@ -8582,7 +8582,7 @@ $(document).ready(async function() {
 										"output_filename": "reordered.aif"
 									});
 									processingRequest.push({
-										"process_kind": "16_channel_pcm_to_wav",
+										"process_kind": "8_channel_pcm_to_wav",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
@@ -8651,7 +8651,7 @@ $(document).ready(async function() {
 										"output_filename": "reordered.aif"
 									});
 									processingRequest.push({
-										"process_kind": "16_channel_pcm_to_wav",
+										"process_kind": "8_channel_pcm_to_wav",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
