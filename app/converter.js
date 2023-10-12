@@ -1046,12 +1046,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -1141,12 +1135,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -1192,12 +1180,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -1250,12 +1232,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -1301,12 +1277,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -1359,12 +1329,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -1400,12 +1364,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -1465,12 +1423,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -1538,12 +1490,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -1618,12 +1564,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -1681,12 +1621,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -1763,12 +1697,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -1870,12 +1798,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -1977,12 +1899,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -2069,12 +1985,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -2220,12 +2130,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -2371,12 +2275,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -2501,12 +2399,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -2629,12 +2521,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									//GAIN UTILITY FOR oFOA
@@ -2762,12 +2648,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									//GAIN UTILITY FOR oFOA
@@ -2895,12 +2775,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									//GAIN UTILITY FOR oFOA
@@ -2997,12 +2871,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									//GAIN UTILITY FOR oFOA
@@ -3086,12 +2954,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -3164,12 +3026,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									//GAIN UTILITY FOR oFOA
@@ -3253,12 +3109,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -3334,12 +3184,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									//GAIN UTILITY FOR oFOA
@@ -3526,12 +3370,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									//GAIN UTILITY FOR oFOA
@@ -3718,12 +3556,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									//GAIN UTILITY FOR oFOA
@@ -3910,12 +3742,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									//GAIN UTILITY FOR oFOA
@@ -4098,12 +3924,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									//GAIN UTILITY FOR oFOA
@@ -4286,12 +4106,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									//GAIN UTILITY FOR oFOA
@@ -4472,12 +4286,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									//GAIN UTILITY FOR oFOA
@@ -4539,12 +4347,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									//GAIN UTILITY FOR oFOA
@@ -4611,12 +4413,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									//GAIN UTILITY FOR oFOA
@@ -4678,12 +4474,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									//GAIN UTILITY FOR oFOA
@@ -4750,12 +4540,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									//GAIN UTILITY FOR oFOA
@@ -4807,12 +4591,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									//GAIN UTILITY FOR oFOA
@@ -4886,12 +4664,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									//GAIN UTILITY FOR oFOA
@@ -4975,12 +4747,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									//GAIN UTILITY FOR oFOA
@@ -5069,12 +4835,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -5132,12 +4892,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -5211,12 +4965,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -5272,12 +5020,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -5338,12 +5080,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -5421,12 +5157,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -5505,12 +5235,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -5571,12 +5295,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -5654,12 +5372,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -5736,12 +5448,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -5841,12 +5547,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -5946,12 +5646,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -6036,12 +5730,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -6167,12 +5855,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -6297,12 +5979,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -6402,12 +6078,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -6507,12 +6177,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -6597,12 +6261,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -6728,12 +6386,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -6858,12 +6510,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -6963,12 +6609,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -7068,12 +6708,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -7158,12 +6792,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -7289,12 +6917,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -7421,12 +7043,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -7514,12 +7130,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -7619,12 +7229,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -7724,12 +7328,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -7814,12 +7412,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -7965,12 +7557,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -8117,12 +7703,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -8212,12 +7792,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -8266,12 +7840,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -8335,12 +7903,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -8387,12 +7949,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -8456,12 +8012,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -8527,12 +8077,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -8579,12 +8123,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -8648,12 +8186,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -8718,12 +8250,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -8813,12 +8339,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -8908,12 +8428,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -9003,12 +8517,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -9098,12 +8606,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -9193,12 +8695,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -9288,12 +8784,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -9632,12 +9122,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
@@ -9780,12 +9264,6 @@ $(document).ready(async function() {
 										"process_kind": "8_channel_ProToolsWav_to_aif",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
 										"output_filename": "MERGED.wav"
 									});
 									processingRequest.push({
