@@ -742,7 +742,7 @@ function runProcess(processData) {
 			return runExec(callString);
 			break;
 
-		case "8_channel_ProToolsWav_to_aif":
+		case "8_channel_ProToolsWav_to_pcm":
 			log.info(" executing " + processData["process_kind"]);
 			var call = ["cd ", tempDir,
 				"&&",
