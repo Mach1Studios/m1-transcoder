@@ -748,7 +748,7 @@ function runProcess(processData) {
 				"&&",
 				ffmpeg, " -y -i ", processData["input_filename"], " -map_channel 0.0.0", " -c:a ", processData["bitdepth"] + "le 000.wav -map_channel 0.0.1", " -c:a ", processData["bitdepth"] + "le 001.wav -map_channel 0.0.2", " -c:a ", processData["bitdepth"] + "le 002.wav -map_channel 0.0.3", " -c:a ", processData["bitdepth"] + "le 003.wav -map_channel 0.0.4", " -c:a ", processData["bitdepth"] + "le 004.wav -map_channel 0.0.5", " -c:a ", processData["bitdepth"] + "le 005.wav -map_channel 0.0.6", " -c:a ", processData["bitdepth"] + "le 006.wav -map_channel 0.0.7", " -c:a ", processData["bitdepth"] + "le 007.wav",
 				"&&",
-				ffmpeg, ' -y -i 000.wav -i 002.wav -i 001.wav -i 006.wav -i 007.wav -i 004.wav -i 005.wav -i 003.wav -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a]amerge=inputs=8[aout]" -map "[aout]" -metadata ICMT="mach1spatial-8" -c:a ' + processData["bitdepth"] + 'be ' + processData["output_filename"]
+				ffmpeg, ' -y -i 000.wav -i 002.wav -i 001.wav -i 006.wav -i 007.wav -i 004.wav -i 005.wav -i 003.wav -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a]amerge=inputs=8[aout]" -map "[aout]" -metadata ICMT="mach1spatial-8" -c:a ' + processData["bitdepth"] + 'le ' + processData["output_filename"]
 			];
 			var callString = call.join(' ');
 			log.info("call: " + callString);
