@@ -171,7 +171,7 @@ $(document).ready(async function() {
 					log.info("Encoded By: " + encoded_by);
 				}
 
-				if (err.toString().indexOf(", 7.1") >= 0) {
+				if (err.toString().indexOf(", 7.1") >= 0 || err.toString().indexOf(", 8 channels,") >= 0) {
 					// var occurenceIndex = err.toString().indexOf("channels");
 					// var channelCount = err.toString().substr(occurenceIndex - 2, 2);
 					var channelCount = 8;
@@ -192,6 +192,20 @@ $(document).ready(async function() {
 					} else {
 						window.fromProTools = false;
 						log.info("Input Spatial Audio File not from Pro Tools or is .aif...")
+					}
+				} else if (err.toString().indexOf(" channels,") >= 0) {
+					// parse the number before the listed channels
+					var re = (\d+) channels,;
+					var channelCount = re.exec(err)[1]; // extracting the number before found channels
+					log.info("Channel Count: " + channelCount);
+
+					//Check if ProTools .wav for clipping out extra channels
+					if ((channelCount == 16 || channelCount == 36 || channelCount == 64) && (encoded_by == "Pro Tools") && (ext == "wav")) {
+						window.fromProTools = true;
+						log.info("Input Spatial Audio File was exported from Pro Tools, will remove extra channels...");
+					} else {
+						window.fromProTools = false;
+						log.info("Input Spatial Audio File not from Pro Tools...")
 					}
 				} else {
 					log.info("Error: Input Spatial Audio channel count not found...");
@@ -7812,15 +7826,9 @@ $(document).ready(async function() {
 								} else {
 									// No optional stereo, case 15
 									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
 										"process_kind": "m1transcode_normalize",
 										"master_gain": "0",
-										"input_filename": "MERGED.wav",
+										"input_filename": inputAudioFilename,
 										"input_format": "M1Spatial",
 										"output_format": "TBE",
 										"output_channelnum": "0",
@@ -7861,15 +7869,9 @@ $(document).ready(async function() {
 								} else {
 									// No optional stereo, case 15
 									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
 										"process_kind": "m1transcode_normalize",
 										"master_gain": "0",
-										"input_filename": "MERGED.wav",
+										"input_filename": inputAudioFilename,
 										"input_format": "M1Spatial",
 										"output_format": "TBE",
 										"output_channelnum": "0",
@@ -7917,15 +7919,9 @@ $(document).ready(async function() {
 								} else {
 									// No optional stereo, case 15
 									processingRequest.push({
-										"process_kind": "16_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
 										"process_kind": "m1transcode",
 										"master_gain": "0",
-										"input_filename": "MERGED.wav",
+										"input_filename": inputAudioFilename,
 										"input_format": "M1Spatial",
 										"output_format": "ACNSN3DO3A",
 										"output_channelnum": "0",
@@ -7974,7 +7970,7 @@ $(document).ready(async function() {
 										"output_video": "muted-video." + window.inputVideoExt
 									});
 									processingRequest.push({
-										"process_kind": "16_channel_pcm_to_wav",
+										"process_kind": "8_channel_pcm_to_wav",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
 										"output_filename": "MERGED.wav"
@@ -8037,7 +8033,7 @@ $(document).ready(async function() {
 										"output_video": "muted-video." + window.inputVideoExt
 									});
 									processingRequest.push({
-										"process_kind": "16_channel_pcm_to_wav",
+										"process_kind": "8_channel_pcm_to_wav",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
 										"output_filename": "MERGED.wav"
@@ -8091,7 +8087,7 @@ $(document).ready(async function() {
 								} else {
 									// No optional stereo, case 15
 									processingRequest.push({
-										"process_kind": "16_channel_pcm_to_wav",
+										"process_kind": "8_channel_pcm_to_wav",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
 										"output_filename": "MERGED.wav"
@@ -8148,7 +8144,7 @@ $(document).ready(async function() {
 										"output_video": "muted-video." + window.inputVideoExt
 									});
 									processingRequest.push({
-										"process_kind": "16_channel_pcm_to_wav",
+										"process_kind": "8_channel_pcm_to_wav",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
 										"output_filename": "MERGED.wav"
@@ -8211,7 +8207,7 @@ $(document).ready(async function() {
 										"output_video": "muted-video." + window.inputVideoExt
 									});
 									processingRequest.push({
-										"process_kind": "16_channel_pcm_to_wav",
+										"process_kind": "8_channel_pcm_to_wav",
 										"bitdepth": window.OutputBitDepthShort,
 										"input_filename": inputAudioFilename,
 										"output_filename": "MERGED.wav"
