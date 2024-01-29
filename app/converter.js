@@ -195,7 +195,7 @@ $(document).ready(async function() {
 					}
 				} else if (err.toString().indexOf(" channels,") >= 0) {
 					// parse the number before the listed channels
-					var re = (\d+) channels,;
+					var re = '(\d+) channels,';
 					var channelCount = re.exec(err)[1]; // extracting the number before found channels
 					log.info("Channel Count: " + channelCount);
 
