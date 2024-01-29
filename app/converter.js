@@ -453,8 +453,11 @@ $(document).ready(async function() {
 		} else {
 			// check output type for preview player
 			var selectedOutputType = $('#OutputType option:selected').val();
-			if (selectedOutputType == 1 || selectedOutputType == 2 || selectedOutputType == 3 || selectedOutputType == 4 || selectedOutputType == 5) $('#Preview').show();
-			else $('#Preview').hide();
+
+			// TODO: Remove this when using new M1-Player app
+			// if (selectedOutputType == 1 || selectedOutputType == 2 || selectedOutputType == 3 || selectedOutputType == 4 || selectedOutputType == 5) $('#Preview').show();
+			// else $('#Preview').hide();
+			$('#Preview').hide();
 
 			$('#MessageSuccess span').html(message);
 			$('#MessageSuccess').css('display', 'inline'); //.show();
@@ -523,32 +526,33 @@ $(document).ready(async function() {
 		});
 	});
 
-	$('#Preview').click(function() {
-		const exec = require('child_process').exec; //Sync;
-		const scriptPath = ipcRenderer.sendSync('get-script-path') ;
-		var scriptPathClean = scriptPath.replace(/ /g, '\\ ')
-		var player = scriptPathClean + "/binaries/m1previewplayer.app/Contents/MacOS/m1previewplayer";
-		// if (!fs.existsSync(player)) {
-		//		 player = scriptPathClean + "/../../binaries/m1previewplayerDebug.app/Contents/MacOS/m1previewplayerDebug";
-		// }
-		// str.substring(0, str.lastIndexOf("/"));
-		log.info("window.selectedOutputType:" + window.selectedOutputType);
-		if (window.selectedOutputType == 1 || window.selectedOutputType == 2 || window.selectedOutputType == 3 || window.selectedOutputType == 4 || window.selectedOutputType == 5) {
-			var command = player + " " + " --inputDir " + escapingPath(scriptPath + "/../../") + " --type " + String(window.selectedOutputType);
-			if (window.outputFilename) {
-				command += " --video " + escapingPath(window.outputFilename);
-			}
-			//setup for stereo flagging if not HorizonPairs output
-			if (!window.inputStereoEmpty && (window.selectedOutputType == 1 || window.selectedOutputType == 5)) {
-				command += " --stereo " + escapingPath(scriptPath + "/../../");
-			}
-			log.info("Preview Command: " + command);
-			exec(command);
-		} else {
-			alert("not supported yet!");
-			log.warn("Preview does not support: FormatType: " + window.selectedOutputType + ", OutputFileType: " + window.selectedOutputFileType);
-		}
-	});
+	// TODO: Update this concept to use the M1-Player app instead
+	// $('#Preview').click(function() {
+	// 	const exec = require('child_process').exec; //Sync;
+	// 	const scriptPath = ipcRenderer.sendSync('get-script-path') ;
+	// 	var scriptPathClean = scriptPath.replace(/ /g, '\\ ')
+	// 	var player = scriptPathClean + "/binaries/m1previewplayer.app/Contents/MacOS/m1previewplayer";
+	// 	// if (!fs.existsSync(player)) {
+	// 	//		 player = scriptPathClean + "/../../binaries/m1previewplayerDebug.app/Contents/MacOS/m1previewplayerDebug";
+	// 	// }
+	// 	// str.substring(0, str.lastIndexOf("/"));
+	// 	log.info("window.selectedOutputType:" + window.selectedOutputType);
+	// 	if (window.selectedOutputType == 1 || window.selectedOutputType == 2 || window.selectedOutputType == 3 || window.selectedOutputType == 4 || window.selectedOutputType == 5) {
+	// 		var command = player + " " + " --inputDir " + escapingPath(scriptPath + "/../../") + " --type " + String(window.selectedOutputType);
+	// 		if (window.outputFilename) {
+	// 			command += " --video " + escapingPath(window.outputFilename);
+	// 		}
+	// 		//setup for stereo flagging if not HorizonPairs output
+	// 		if (!window.inputStereoEmpty && (window.selectedOutputType == 1 || window.selectedOutputType == 5)) {
+	// 			command += " --stereo " + escapingPath(scriptPath + "/../../");
+	// 		}
+	// 		log.info("Preview Command: " + command);
+	// 		exec(command);
+	// 	} else {
+	// 		alert("not supported yet!");
+	// 		log.warn("Preview does not support: FormatType: " + window.selectedOutputType + ", OutputFileType: " + window.selectedOutputFileType);
+	// 	}
+	// });
 
 	$('#Render').click(function() {
 		LogDependencies();
