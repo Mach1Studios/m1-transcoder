@@ -138,7 +138,7 @@ $(document).ready(async function() {
 		const scriptPath = ipcRenderer.sendSync('get-script-path');
 		const scriptPathClean = scriptPath.replace(/ /g, '\\ ');
 		const isWin = process.platform === "win32";
-		const dataPath = path.join(ipcRenderer.sendSync('get-app-data-path'), 'Mach1 Spatial System/');
+		const dataPath = path.join(ipcRenderer.sendSync('get-app-data-path'), 'Mach1/');
 		const ffmpeg = '"' + dataPath + (isWin ? "ffmpeg.exe" : "ffmpeg") + '"'; // scriptPathClean + "/../binaries/ffmpeg" + (isWin ? ".exe" : "")
 
 		for (let filePath of window.inputAudioFiles) {
