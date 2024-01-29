@@ -9,7 +9,7 @@ var isWin = process.platform === "win32";
 const scriptPath = ipcRenderer.sendSync('get-script-path')
 var scriptPathClean = scriptPath.replace(/ /g, '\\ ')
 
-const dataPath = path.join(ipcRenderer.sendSync('get-app-data-path'), 'Mach1 Spatial System/');
+const dataPath = path.join(ipcRenderer.sendSync('get-app-data-path'), 'Mach1/');
 const ffmpeg = '"' + dataPath + (isWin ? "ffmpeg.exe" : "ffmpeg") + '"'; // scriptPathClean + "/../binaries/ffmpeg" + (isWin ? ".exe" : "")
 const FFMPEG_ARCHIVE_URL = (isWin ? "https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v4.1/ffmpeg-4.1-win-64.zip" : "https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v4.1/ffmpeg-4.1.7-osx-64.zip");
 const FFMPEG_ARCHIVE_FILENAME = (isWin ? "ffmpeg-4.1-win-64.zip" : "ffmpeg-4.1.7-osx-64.zip");

@@ -46,7 +46,7 @@ function runProcess(processData) {
 	const exe_type = (isWin ? ".exe" : "");
 	const scriptPath = ipcRenderer.sendSync('get-script-path');
 	const scriptPathClean = scriptPath.replace(/ /g, '\\ ');
-	const dataPath = path.join(ipcRenderer.sendSync('get-app-data-path'), 'Mach1 Spatial System/');
+	const dataPath = path.join(ipcRenderer.sendSync('get-app-data-path'), 'Mach1/');
 	const ffmpeg = '"' + dataPath + (isWin ? "ffmpeg.exe" : "ffmpeg") + '"'; // scriptPathClean + "/../binaries/ffmpeg" + (isWin ? ".exe" : "")
 	const m1transcode = '"' + dataPath + (isWin ? "m1-transcode-win-x64/m1-transcode.exe" : "m1-transcode-osx-x64/m1-transcode") + '"';
 	const ytmeta = path.join(ipcRenderer.sendSync('get-resource-path'), "extraResources", "spatialmedia", exe_type);
