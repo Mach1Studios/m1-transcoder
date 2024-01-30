@@ -31,10 +31,6 @@ cd to_m1transcoder_path
 # Install dependencies
 npm install
 
-# install Electron Packager for use from cli
-npm install electron-packager -g
-npm install electron-builder --save-dev
-
 # package macOS app
 npm run package-mac
 # package windows app
