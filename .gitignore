@@ -1,6 +1,7 @@
 ## Mach1
 dist/
 app/fonts/
+app/extraResources/spatialmedia*
 
 ## dependencies
 build/*

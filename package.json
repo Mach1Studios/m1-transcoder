@@ -63,12 +63,12 @@
   "author": "Mach1",
   "license": "SEE LICENSE IN mach1-semi-open-license.md",
   "devDependencies": {
+    "electron-notarize": "^1.2.2",
     "@electron/osx-sign": "^1.0.5",
     "dotenv": "^16.3.1",
     "electron": "^26.0.0",
     "electron-builder": "^24.6.3",
-    "electron-packager": "^17.1.2",
-    "@electron/notarize": "^2.2.1"
+    "electron-packager": "^17.1.2"
   },
   "dependencies": {
     "@electron/asar": "^3.2.8",
