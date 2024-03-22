@@ -564,13 +564,15 @@ function runProcess(processData) {
 
 			return runExec(callString);
 			break;
-			//
-			/*
-			-------------------------------------------------------------
-			FORMAT CONVERTERS
-			-------------------------------------------------------------
-			*/
-			//
+		
+		//
+		/*
+		-------------------------------------------------------------
+		FORMAT CONVERTERS
+		-------------------------------------------------------------
+		*/
+		//
+		
 		case "m1transcode_spatial2horizon":
 			log.info(" executing " + processData["process_kind"]);
 			var call = ["cd ", tempDir,
@@ -633,13 +635,13 @@ function runProcess(processData) {
 			return runExec(callString);
 			break;
 
-			//
-			/*
-			-------------------------------------------------------------
-			EXTRA/UTILITY
-			-------------------------------------------------------------
-			*/
-			//
+		//
+		/*
+		-------------------------------------------------------------
+		EXTRA/UTILITY
+		-------------------------------------------------------------
+		*/
+		//
 
 		case "TBE_copy_to_dir":
 			log.info(" executing " + processData["process_kind"]);
@@ -647,9 +649,7 @@ function runProcess(processData) {
 				"&&",
 				"mv makeTBE.wav ", processData["output_filename"] + "_3D.wav"
 			];
-
 			var callString = call.join(' ');
-
 			return runExec(callString);
 			break;
 
@@ -661,9 +661,7 @@ function runProcess(processData) {
 				"&&",
 				"cp " + processData["stereo_filename"] + " " + processData["output_filename"] + "_ST.wav"
 			];
-
 			var callString = call.join(' ');
-
 			return runExec(callString);
 			break;
 
@@ -688,7 +686,6 @@ function runProcess(processData) {
 				"mv 007.wav ", escapingPath(processData["output_dir"] + "007.wav")
 			];
 			var callString = call.join(' ');
-
 			return runExec(callString);
 			break;
 
@@ -713,7 +710,6 @@ function runProcess(processData) {
 				ffmpeg, "-i 007.wav -c:a aac -b:a 128k -q:a 10 ", escapingPath(processData["output_dir"] + "007.m4a")
 			];
 			var callString = call.join(' ');
-
 			return runExec(callString);
 			break;
 
@@ -738,7 +734,6 @@ function runProcess(processData) {
 				ffmpeg, "-i 007.wav -c:a libvorbis -q:a 10 ", escapingPath(processData["output_dir"] + "007.ogg")
 			];
 			var callString = call.join(' ');
-
 			return runExec(callString);
 			break;
 
@@ -752,7 +747,6 @@ function runProcess(processData) {
 			];
 			var callString = call.join(' ');
 			log.info("call: " + callString);
-
 			return runExec(callString);
 			break;
 
@@ -774,7 +768,6 @@ function runProcess(processData) {
 				" -i st1.wav -i st2.wav -i st3.wav -i st4.wav -vcodec copy -map 0:0 -map 1:0 -map 2:0 -map 3:0 -map 4:0 ", processData["output_video"]
 			];
 			var callString = call.join(' ');
-
 			return runExec(callString);
 			break;
 
@@ -796,7 +789,6 @@ function runProcess(processData) {
 				" -i st1.wav -i st2.wav -i st3.wav -i st4.wav -i ", processData["stereo_filename"], " -vcodec copy -map 0:0 -map 1:0 -map 2:0 -map 3:0 -map 4:0 -map 5:0 ", processData["output_video"]
 			];
 			var callString = call.join(' ');
-
 			return runExec(callString);
 			break;
 
@@ -804,11 +796,9 @@ function runProcess(processData) {
 			var call = [
 				ytmeta, " -i --stereo=" + processData["videoScopic"], "--spatial-audio ", escapingPath(tempDir_notEscaped+processData["input_filename"]), " ", escapingPath(processData["output_video"])
 			];
-
 			log.info(" executing " + processData["process_kind"]);
 			var callString = call.join(' ');
 			log.info("the exact call is:" + callString);
-
 			return runExec(callString);
 			break;
 
@@ -818,10 +808,41 @@ function runProcess(processData) {
 				ffmpeg, " -y -i ", processData["input_filename"],
 				' -c:a ' + processData["bitdepth"] + 'le -af "volume=', processData["gain"], '" ', processData["output_filename"]
 			];
-
 			log.info(" executing " + processData["process_kind"]);
 			var callString = call.join(' ');
+			return runExec(callString);
+			break;
 
+		case "ffmpeg-trim-to-8ch":
+			var call = ["cd ", tempDir, 
+				"&&",
+				ffmpeg, " -y -i ", processData["input_filename"],
+				' -c:a ' + processData["bitdepth"] + 'le -af pan=8c|c0=c0|c1=c1|c2=c2|c3=c3|c4=c4|c5=c5|c6=c6|c7=c7', processData["output_filename"]
+			];
+			log.info(" executing " + processData["process_kind"]);
+			var callString = call.join(' ');
+			return runExec(callString);
+			break;
+
+		case "ffmpeg-trim-to-12ch":
+			var call = ["cd ", tempDir, 
+				"&&",
+				ffmpeg, " -y -i ", processData["input_filename"],
+				' -c:a ' + processData["bitdepth"] + 'le -af pan=12c|c0=c0|c1=c1|c2=c2|c3=c3|c4=c4|c5=c5|c6=c6|c7=c7|c8=c8|c9=c9|c10=c10|c11=c11', processData["output_filename"]
+			];
+			log.info(" executing " + processData["process_kind"]);
+			var callString = call.join(' ');
+			return runExec(callString);
+			break;
+
+		case "ffmpeg-trim-to-14ch":
+			var call = ["cd ", tempDir, 
+				"&&",
+				ffmpeg, " -y -i ", processData["input_filename"],
+				' -c:a ' + processData["bitdepth"] + 'le -af pan=14c|c0=c0|c1=c1|c2=c2|c3=c3|c4=c4|c5=c5|c6=c6|c7=c7|c8=c8|c9=c9|c10=c10|c11=c11|c12=c12|c13=c13', processData["output_filename"]
+			];
+			log.info(" executing " + processData["process_kind"]);
+			var callString = call.join(' ');
 			return runExec(callString);
 			break;
 
@@ -834,7 +855,6 @@ function runProcess(processData) {
 			log.info(" executing " + processData["process_kind"]);
 			var callString = call.join(' ');
 			log.info("call: " + callString);
-
 			return runExec(callString);
 			break;
 
@@ -847,11 +867,9 @@ function runProcess(processData) {
 				"&&",
 				ffmpeg, " -y -loop 1 -i ", processData["input_video_image"], " -i MERGED.wav -c:v libx264 -pix_fmt yuv420p -r 24 -b:v 277k -tune stillimage -shortest -c:a eac3 -b:a 768k ", processData["output_filename"]
 			];
-
 			log.info(" executing " + processData["process_kind"]);
 			var callString = call.join(' ');
 			log.info("call: " + callString);
-
 			return runExec(callString);
 			break;
 
@@ -861,11 +879,9 @@ function runProcess(processData) {
 				ffmpeg, " -y -i ", processData["input_video"],
 				" -i ", processData["input_audio"], " -vcodec copy -acodec copy -metadata comment='mach1spatial-8' ", processData["output_video"]
 			];
-
 			log.info(" executing " + processData["process_kind"]);
 			var callString = call.join(' ');
 			log.info("call: " + callString);
-
 			return runExec(callString);
 			break;
 
@@ -900,10 +916,8 @@ function runProcess(processData) {
 				"&&",
 				ffmpeg, ' -y -i 1.wav -i 2.wav -i 3.wav -i 4.wav -i 5.wav -i 6.wav -i 7.wav -i 8.wav -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a]amerge=inputs=8[aout]" -map "[aout]" MERGED.wav'
 			];
-
 			log.info(" executing " + processData["process_kind"]);
 			var callString = call.join(' ');
-
 			return runExec(callString);
 			break;
 
@@ -913,10 +927,8 @@ function runProcess(processData) {
 				ffmpeg, " -y -i ", processData["input_video"],
 				" -i ", processData["input_audio"], " -c:v copy -metadata comment='mach1spatial-8' ", processData["output_video"]
 			];
-
 			log.info(" executing " + processData["process_kind"]);
 			var callString = call.join(' ');
-
 			return runExec(callString);
 			break;
 
@@ -950,10 +962,8 @@ function runProcess(processData) {
 				ffmpeg, " -y -i ", processData["input_video"],
 				" -i ", actualFiles[0], " -i ", actualFiles[1], " -i ", actualFiles[2], " -i ", actualFiles[3], " -vcodec copy -acodec copy -map 0:0 -map 1:0 -map 2:0 -map 3:0 -map 4:0 ", processData["output_video"]
 			];
-
 			log.info(" executing " + processData["process_kind"]);
 			var callString = call.join(' ');
-
 			return runExec(callString);
 			break;
 
@@ -1010,11 +1020,9 @@ function runProcess(processData) {
 				ffmpeg, " -y -i ", processData["input_video"],
 				" -i st1.wav -i st2.wav -i st3.wav -i st4.wav -vcodec copy -map 0:0 -map 1:0 -map 2:0 -map 3:0 -map 4:0 ", processData["output_video"]
 			];
-
 			log.info(" executing " + processData["process_kind"]);
 			var callString = call.join(' ');
 			log.info("call: " + callString);
-
 			return runExec(callString);
 			break;
 
@@ -1031,11 +1039,9 @@ function runProcess(processData) {
 				"&&",
 				ffmpeg, ' -y -i 006.wav -i 007.wav -filter_complex "[0:a][1:a]amerge=inputs=2[aout]" -map "[aout]" ', processData["output_filename"], "_st4"
 			];
-
 			log.info(" executing " + processData["process_kind"]);
 			var callString = call.join(' ');
 			log.info("call: " + callString);
-
 			return runExec(callString);
 			break;
 	}
@@ -1052,7 +1058,6 @@ async function performSetOfProcesses(data) {
 			log.error("failed at process " + i);
 			return false;
 		}
-
 	}
 
 	log.info("finished successfully");
