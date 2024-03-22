@@ -12,6 +12,10 @@ $(document).ready(async function() {
 	inputStereoEmpty = true;
 	updateUIInputOptionsDependingOnSelectedFileTypes();
 
+	// Used to indicate if the file needs to trim down first
+	// TODO: use pre-processing for this and fromPT detection
+	window.trim_to = "";
+
 	$("select, input").change(function() {
 		HideMessage();
 	});
@@ -179,20 +183,17 @@ $(document).ready(async function() {
 					var re = /(?:\.([^.]+))?$/;
 					var ext = re.exec(filePath)[1]; // extracting file extension
 					log.info("Input Spatial Audio Extension: " + ext)
-					if ((channelCount == 8) && (ext == "wav")) {
-						// log.info("showing message!");
-						// ShowMessage("8 Channel .wav files yield different channel orders dependent on DAW/Export software. \
-						//	 If you are using Pro Tools HD please use .aif interleaved export option to ensure safe channel ordering", true);
-					}
 
 					//Check if ProTools .wav for reorder
-					if ((channelCount == 8) && (encoded_by == "Pro Tools") && (ext == "wav")) {
+					if ((encoded_by == "Pro Tools") && (ext == "wav") && (channelCount == 8)) {
 						window.fromProTools = true;
 						log.info("Input Spatial Audio File was exported from Pro Tools, will use channel re-ordering...");
 					} else {
 						window.fromProTools = false;
 						log.info("Input Spatial Audio File not from Pro Tools or is .aif...")
 					}
+					window.m1_spatial_cfg = "Mach1Spatial-8";
+					log.info("Input Mach1 Spatial Config: " + window.m1_spatial_cfg);
 				} else if (err.toString().indexOf(" channels,") >= 0) {
 					// parse the number before the listed channels
 					var re = '(\d+) channels,';
@@ -200,9 +201,25 @@ $(document).ready(async function() {
 					log.info("Channel Count: " + channelCount);
 
 					//Check if ProTools .wav for clipping out extra channels
-					if ((channelCount == 16 || channelCount == 36 || channelCount == 64) && (encoded_by == "Pro Tools") && (ext == "wav")) {
+					if ((encoded_by == "Pro Tools") && (ext == "wav") && (channelCount > 8) {
 						window.fromProTools = true;
 						log.info("Input Spatial Audio File was exported from Pro Tools, will remove extra channels...");
+						if (channelCount == 9) {
+							// TODO: Allow user selection of input format 
+							// assume Mach1Spatial-8
+
+							window.m1_spatial_cfg = "Mach1Spatial-8";
+							log.info("Input Mach1 Spatial Config: " + window.m1_spatial_cfg);
+						} else if (channelCount == 16) {
+							// TODO: Allow user selection of input format 
+							// assume Mach1Spatial-14
+						} else if (channelCount == 36) {
+							// TODO: Allow user selection of input format 
+							// assume Mach1Spatial-14
+						} else if (channelCount == 64) {
+							// TODO: Allow user selection of input format 
+							// assume Mach1Spatial-14
+						}
 					} else {
 						window.fromProTools = false;
 						log.info("Input Spatial Audio File not from Pro Tools...")
