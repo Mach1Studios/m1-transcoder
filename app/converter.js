@@ -12,6 +12,10 @@ $(document).ready(async function() {
 	inputStereoEmpty = true;
 	updateUIInputOptionsDependingOnSelectedFileTypes();
 
+	// Used to indicate if the file needs to trim down first
+	// TODO: use pre-processing for this and fromPT detection
+	window.trim_to = "";
+
 	$("select, input").change(function() {
 		HideMessage();
 	});
@@ -77,6 +81,7 @@ $(document).ready(async function() {
 		e.preventDefault();
 		$('#dragAudio,#dragStereo,#dragJson,#dragVideo').hide();
 		if (e.dataTransfer.files.length > 0) {
+			// TODO: Display indicator for detecting multiple files
 			$('#Audio input[type="text"]').val(e.dataTransfer.files[0].path);
 		}
 		window.inputAudioFiles.length = 0;
@@ -86,7 +91,6 @@ $(document).ready(async function() {
 			window.inputAudioFiles[index] = f.path;
 			index++;
 		}
-		checkSpatialAudioInput();
 		return false;
 	};
 
@@ -100,7 +104,6 @@ $(document).ready(async function() {
 			window.inputStereoFiles[index] = f.path;
 			index++;
 		}
-		checkStereoAudioInput();
 		return false;
 	};
 
@@ -114,7 +117,6 @@ $(document).ready(async function() {
 			window.inputJsonFiles[index] = f.path;
 			index++;
 		}
-		checkJsonInput();
 		return false;
 	};
 
@@ -128,18 +130,24 @@ $(document).ready(async function() {
 			window.inputVideoFiles[index] = f.path;
 			index++;
 		}
-		checkVideoInput();
 		return false;
 	};
 
 	function checkSpatialAudioInput() {
 		const exec = require('child_process').execSync;
-
 		const scriptPath = ipcRenderer.sendSync('get-script-path');
 		const scriptPathClean = scriptPath.replace(/ /g, '\\ ');
 		const isWin = process.platform === "win32";
 		const dataPath = path.join(ipcRenderer.sendSync('get-app-data-path'), 'Mach1/');
 		const ffmpeg = '"' + dataPath + (isWin ? "ffmpeg.exe" : "ffmpeg") + '"'; // scriptPathClean + "/../binaries/ffmpeg" + (isWin ? ".exe" : "")
+
+		// Reset vars
+		window.trim_to = "";
+		var channelCount = 0;
+		var re = "";
+		var bitdepth = "";
+		var encoded_by = "";
+		var ext = "";
 
 		for (let filePath of window.inputAudioFiles) {
 			// checking channel count
@@ -152,10 +160,9 @@ $(document).ready(async function() {
 					}
 				});
 			} catch (err) {
-				var bitdepth = "";
 				if (err.toString().indexOf("Audio:") >= 0) {
-					//var re = /(?<=Audio: )[^\ ]+/; // this failed because we cannot support look behinds
-					var re = /Audio:\s(\w+)/;
+					//re = /(?<=Audio: )[^\ ]+/; // this failed because we cannot support look behinds
+					re = /Audio:\s(\w+)/;
 					bitdepth = re.exec(err)[1]; // extracting file extension
 					log.info("Input BitDepth: " + bitdepth);
 					window.OutputBitDepth = bitdepth; // copy the string from ffmpeg input for -c:a call
@@ -164,59 +171,157 @@ $(document).ready(async function() {
 					log.info("Output Bitdepth Short: " + window.OutputBitDepthShort);
 				}
 
-				var encoded_by = "";
 				if (err.toString().indexOf("encoded_by") >= 0) {
-					var re = /.*encoded_by[ ]*:[ ]*(.*)[ \r\n]*\n/;
+					re = /.*encoded_by[ ]*:[ ]*(.*)[ \r\n]*\n/;
 					encoded_by = re.exec(err)[1]; // extracting file extension
 					log.info("Encoded By: " + encoded_by);
 				}
 
 				if (err.toString().indexOf(", 7.1") >= 0 || err.toString().indexOf(", 8 channels,") >= 0) {
 					// var occurenceIndex = err.toString().indexOf("channels");
-					// var channelCount = err.toString().substr(occurenceIndex - 2, 2);
-					var channelCount = 8;
+					// channelCount = err.toString().substr(occurenceIndex - 2, 2);
+					channelCount = 8;
 					log.info("Input Spatial Audio Channel Count: " + channelCount);
-					var re = /(?:\.([^.]+))?$/;
-					var ext = re.exec(filePath)[1]; // extracting file extension
+					re = /(?:\.([^.]+))?$/;
+					ext = re.exec(filePath)[1]; // extracting file extension
 					log.info("Input Spatial Audio Extension: " + ext)
-					if ((channelCount == 8) && (ext == "wav")) {
-						// log.info("showing message!");
-						// ShowMessage("8 Channel .wav files yield different channel orders dependent on DAW/Export software. \
-						//	 If you are using Pro Tools HD please use .aif interleaved export option to ensure safe channel ordering", true);
-					}
 
 					//Check if ProTools .wav for reorder
-					if ((channelCount == 8) && (encoded_by == "Pro Tools") && (ext == "wav")) {
-						window.fromProTools = true;
+					if ((encoded_by == "Pro Tools") && (ext == "wav") && (channelCount == 8)) {
+						window.fromProToolsNeedsChannelReOrdering = true; // indicates we should reorder!
 						log.info("Input Spatial Audio File was exported from Pro Tools, will use channel re-ordering...");
 					} else {
-						window.fromProTools = false;
+						window.fromProToolsNeedsChannelReOrdering = false;
 						log.info("Input Spatial Audio File not from Pro Tools or is .aif...")
 					}
-				} else if (err.toString().indexOf(" channels,") >= 0) {
-					// parse the number before the listed channels
-					var re = '(\d+) channels,';
-					var channelCount = re.exec(err)[1]; // extracting the number before found channels
+				} else if (err.toString().indexOf("hexadecagonal") >= 0 || err.toString().indexOf(" channels") >= 0) {
+					if (err.toString().indexOf("hexadecagonal") >= 0) {
+						channelCount = 16;
+					} else {
+						// parse the number before the listed channels
+						re = /(\d+) channels/gm;
+						channelCount = re.exec(err)[1]; // extracting the number before found channels
+					}
 					log.info("Channel Count: " + channelCount);
 
 					//Check if ProTools .wav for clipping out extra channels
-					if ((channelCount == 16 || channelCount == 36 || channelCount == 64) && (encoded_by == "Pro Tools") && (ext == "wav")) {
-						window.fromProTools = true;
+					if ((encoded_by == "Pro Tools") && (channelCount > 8)) {
 						log.info("Input Spatial Audio File was exported from Pro Tools, will remove extra channels...");
+						
+						// TODO: Allow user selection of input format 
+						if (channelCount < 8) {
+							window.trim_to = "Mach1Spatial-4";
+						} else if (channelCount < 12) {
+							window.trim_to = "Mach1Spatial-8"; // assume Mach1Spatial-8
+						} else if (channelCount < 14) {
+							window.trim_to = "Mach1Spatial-12"; // assume Mach1Spatial-12
+						} else if (channelCount > 14) {
+							window.trim_to = "Mach1Spatial-14"; // assume Mach1Spatial-14
+						}
+
+						log.info("Input Mach1 Spatial Config: " + window.trim_to);
+						window.fromProToolsNeedsChannelReOrdering = false;
+
 					} else {
-						window.fromProTools = false;
-						log.info("Input Spatial Audio File not from Pro Tools...")
+						window.fromProToolsNeedsChannelReOrdering = false;
+						log.info("Input Spatial Audio File is from Pro Tools and marked for channel count trimming...")
 					}
 				} else {
 					log.info("Error: Input Spatial Audio channel count not found...");
 					log.info(err.toString())
-					window.fromProTools = false;
+					window.fromProToolsNeedsChannelReOrdering = false;
 				}
 			}
 		}
-		log.info("Input Spatial Audio from ProTools? " + window.fromProTools);
+		log.info("Input Spatial Audio from ProTools and needs channel re-ordering? " + window.fromProToolsNeedsChannelReOrdering);
 		HideMessage();
 		updateUIInputOptionsDependingOnSelectedFileTypes();
+	}
+
+	function preprocessSpatialAudioInput() {
+		const exec = require('child_process').execSync;
+		const scriptPath = ipcRenderer.sendSync('get-script-path');
+		const scriptPathClean = scriptPath.replace(/ /g, '\\ ');
+		const isWin = process.platform === "win32";
+		const dataPath = path.join(ipcRenderer.sendSync('get-app-data-path'), 'Mach1/');
+		const ffmpeg = '"' + dataPath + (isWin ? "ffmpeg.exe" : "ffmpeg") + '"'; // 
+
+		// get temp dir
+		var tempDir = dataPath + 'temp/' // scriptPathClean + "/../.."
+		if (!fs.existsSync(tempDir)) {
+			fs.mkdirSync(tempDir, {
+				recursive: true
+			});
+		}
+		tempDir = "\"" + tempDir + "\"";
+
+		if (window.inputAudioFiles.length == 1) {
+			if (window.fromProToolsNeedsChannelReOrdering) {
+				try {
+					exec("cd "+tempDir+" && "+ffmpeg+' -y -i "'+window.inputAudioFiles[0]+'" -map_channel 0.0.0 -c:a '+window.OutputBitDepthShort+'le 000.wav -map_channel 0.0.1 -c:a '+window.OutputBitDepthShort+'le 001.wav -map_channel 0.0.2 -c:a '+window.OutputBitDepthShort+'le 002.wav -map_channel 0.0.3 -c:a '+window.OutputBitDepthShort+'le 003.wav -map_channel 0.0.4 -c:a '+window.OutputBitDepthShort+'le 004.wav -map_channel 0.0.5 -c:a '+window.OutputBitDepthShort+'le 005.wav -map_channel 0.0.6 -c:a '+window.OutputBitDepthShort+'le 006.wav -map_channel 0.0.7 -c:a '+window.OutputBitDepthShort+'le 007.wav', function(error, stdout, stderr) {
+						log.info('stdout', stdout);
+						console.error('stderr', stderr);
+						if (error !== null) {
+							log.error('exec error: ', error);
+						}
+					});
+				} catch (err) {
+					log.info("[fromProTools] Split 8ch 7.1 PT export into multi-mono");
+				}
+				try {
+					exec("cd "+tempDir+" && "+ffmpeg+' -y -i 000.wav -i 002.wav -i 001.wav -i 006.wav -i 007.wav -i 004.wav -i 005.wav -i 003.wav -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a]amerge=inputs=8[aout]" -map "[aout]" -metadata ICMT="mach1spatial-8" -c:a '+window.OutputBitDepthShort+'le inputspatialaudio.wav', function(error, stdout, stderr) {
+						log.info('stdout', stdout);
+						console.error('stderr', stderr);
+						if (error !== null) {
+							log.error('exec error: ', error);
+						}
+					});
+				} catch (err) {
+					log.info("[fromProTools] Recombined the multi-mono into a discretely ordered 8ch file");
+				}
+			}
+			if (window.trim_to != "") {
+				if (window.trim_to == "Mach1Spatial-8") {
+					try {
+						exec("cd "+tempDir+" && "+ffmpeg+' -y -i "'+window.inputAudioFiles[0]+'" -c:a '+window.OutputBitDepthShort+'le -af "pan=8c|c0=c0|c1=c1|c2=c2|c3=c3|c4=c4|c5=c5|c6=c6|c7=c7" inputspatialaudio.wav', function(error, stdout, stderr) {
+							log.info('stdout', stdout);
+							console.error('stderr', stderr);
+							if (error !== null) {
+								log.error('exec error: ', error);
+							}
+						});
+					} catch (err) {
+						log.info("Trimmed number of channels to: " + window.trim_to);
+					}
+				}
+				else if (window.trim_to == "Mach1Spatial-12") {
+					try {
+						exec("cd "+tempDir+" && "+ffmpeg+' -y -i "'+window.inputAudioFiles[0]+'" -c:a '+window.OutputBitDepthShort+'le -af "pan=12c|c0=c0|c1=c1|c2=c2|c3=c3|c4=c4|c5=c5|c6=c6|c7=c7|c8=c8|c9=c9|c10=c10|c11=c11" inputspatialaudio.wav', function(error, stdout, stderr) {
+							log.info('stdout', stdout);
+							console.error('stderr', stderr);
+							if (error !== null) {
+								log.error('exec error: ', error);
+							}
+						});
+					} catch (err) {
+						log.info("Trimmed number of channels to: " + window.trim_to);
+					}
+				}
+				else if (window.trim_to == "Mach1Spatial-14") {
+					try {
+						exec("cd "+tempDir+" && "+ffmpeg+' -y -i "'+window.inputAudioFiles[0]+'" -c:a '+window.OutputBitDepthShort+'le -af "pan=14c|c0=c0|c1=c1|c2=c2|c3=c3|c4=c4|c5=c5|c6=c6|c7=c7|c8=c8|c9=c9|c10=c10|c11=c11|c12=c12|c13=c13" inputspatialaudio.wav', function(error, stdout, stderr) {
+							log.info('stdout', stdout);
+							console.error('stderr', stderr);
+							if (error !== null) {
+								log.error('exec error: ', error);
+							}
+						});
+					} catch (err) {
+						log.info("Trimmed number of channels to: " + window.trim_to);
+					}
+				}
+			}
+		}
 	}
 
 	function checkStereoAudioInput() {
@@ -569,10 +674,12 @@ $(document).ready(async function() {
 
 		// run ffmpeg
 		function runTranscode() {
+			// TODO: move the clear steps into a new function
+
 			// removing temp files
 			const execSync = require('child_process').execSync;
 			try {
-				const dataPath = path.join(ipcRenderer.sendSync('get-app-data-path'), 'Mach1 Spatial System/');
+				const dataPath = path.join(ipcRenderer.sendSync('get-app-data-path'), 'Mach1/');
 
 				const scriptPath = ipcRenderer.sendSync('get-script-path') ;
 				var scriptPathClean = scriptPath.replace(/ /g, '\\ ');
@@ -588,24 +695,31 @@ $(document).ready(async function() {
 				const isWin = process.platform === "win32";
 				(isWin ? "ffmpeg.exe" : "ffmpeg")
 				execSync("cd " + tempDir +
-					" && " + (isWin ? "del" : "rm -f") + " 1.wav 2.wav 3.wav 4.wav 5.wav 6.wav 7.wav 8.wav 000.wav 001.wav 002.wav 003.wav 004.wav 005.wav 006.wav 007.wav 008.wav 009.wav MERGED.wav MERGED.m4a st1.wav st2.wav st3.wav st4.wav outputaudio.wav output_audio.wav output_audio.ac3 videooutput_forinject.mp4",
+					" && " + (isWin ? "del" : "rm -f") + " 1.wav 2.wav 3.wav 4.wav 5.wav 6.wav 7.wav 8.wav 000.wav 001.wav 002.wav 003.wav 004.wav 005.wav 006.wav 007.wav 008.wav 009.wav MERGED.wav MERGED.m4a st1.wav st2.wav st3.wav st4.wav inputspatialaudio.wav outputaudio.wav output_audio.wav output_audio.ac3 videooutput_forinject.mp4",
 					function(error, stdout, stderr) {
 						return true;
 					});
 				log.info("..removed temp files successfully..");
+
+				window.fromProToolsNeedsChannelReOrdering = false;
+				window.trim_to = "";
+				window.processedInputSpatialAudio = "";
+				log.info("..reset temp vars successfully..");
+
 			} catch (err) {
 				log.error(err);
 			}
 
 			// checking inputs
 			checkSpatialAudioInput();
+			preprocessSpatialAudioInput();
 			checkStereoAudioInput();
 			checkJsonInput();
 			checkVideoInput();
 
 			window.inputAudioFiles[0] = $('#Audio input[type="text"]').val();
 			inputAudioFilename = window.inputAudioFiles[0];
-			var inputAudioExt = inputAudioFilename.substr(inputAudioFilename.length - 3);
+			var inputAudioExt = inputAudioFilename.substring(inputAudioFilename.lastIndexOf('.')+1, inputAudioFilename.length) || inputAudioFilename;
 			log.info("Input Spatial Audio Path: ", inputAudioExt);
 
 			var inputVideoFilename = $('#Video input[type="text"]').val();
@@ -767,11 +881,11 @@ $(document).ready(async function() {
 					case "1":
 						if (selectedOutputFileType == 1) { // Audio only compressed aac
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
+								if (window.fromProToolsNeedsChannelReOrdering == true) {
 									processingRequest.push({
 										"process_kind": "8_channel_ProToolsWav_to_pcm",
 										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
+										"input_filename": "inputspatialaudio.wav",
 										"output_filename": "reordered.aif"
 									});
 									processingRequest.push({
@@ -783,17 +897,17 @@ $(document).ready(async function() {
 									// No optional stereo, case 1
 									processingRequest.push({
 										"process_kind": "8_channel_pcm_to_m4a",
-										"input_filename": inputAudioFilename,
+										"input_filename": "inputspatialaudio.wav",
 										"output_filename": outputVideoFilename
 									});
 								}
 							} else {
 								//TODO: AAC / VORBIS 10 CHANNEL
-								if (window.fromProTools == true) {
+								if (window.fromProToolsNeedsChannelReOrdering == true) {
 									processingRequest.push({
 										"process_kind": "8_channel_ProToolsWav_to_pcm",
 										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
+										"input_filename": "inputspatialaudio.wav",
 										"output_filename": "reordered.aif"
 									});
 									processingRequest.push({
@@ -806,7 +920,7 @@ $(document).ready(async function() {
 									// Optional stereo, case 2
 									processingRequest.push({
 										"process_kind": "8_channel_pcm_to_m4a_plus_stereo",
-										"input_filename": inputAudioFilename,
+										"input_filename": "inputspatialaudio.wav",
 										"stereo_filename": inputStaticStereoFilename,
 										"output_filename": outputVideoFilename
 									});
@@ -815,330 +929,142 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 11) { // Audio only compressed ogg
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_ogg",
-										"input_filename": "reordered.aif",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 1
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_ogg",
-										"input_filename": inputAudioFilename,
-										"output_filename": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 1
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_ogg",
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": outputVideoFilename
+								});
 							} else {
 								//TODO: AAC / VORBIS 10 CHANNEL
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_ogg_plus_stereo",
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// Optional stereo, case 2
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_ogg_plus_stereo",
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": outputVideoFilename
-									});
-								}
+								// Optional stereo, case 2
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_ogg_plus_stereo",
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 13) { // Audio only compressed opus
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_ogg",
-										"input_filename": "reordered.aif",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 1
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_ogg",
-										"input_filename": inputAudioFilename,
-										"output_filename": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 1
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_ogg",
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": outputVideoFilename
+								});
 							} else {
 								//TODO: AAC / VORBIS 10 CHANNEL
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_ogg_plus_stereo",
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// Optional stereo, case 2
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_ogg_plus_stereo",
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": outputVideoFilename
-									});
-								}
+								// Optional stereo, case 2
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_ogg_plus_stereo",
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									log.info("im converting from ProTools")
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_output",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 1
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_output",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 1
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_output",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// Optional stereo, case 2
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": outputVideoFilename
-									});
-								}
+								// Optional stereo, case 2
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_m4a",
-										"input_filename": "reordered.aif",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 1
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_m4a",
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 1
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_m4a",
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.m4a"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_hard",
+									"input_audio": "MERGED.m4a",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_m4a_plus_stereo",
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// Optional stereo, case 2
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_m4a_plus_stereo",
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// Optional stereo, case 2
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_m4a_plus_stereo",
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.m4a"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "MERGED.m4a",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 1
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 1
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_hard",
+									"input_audio": "MERGED.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// Optional stereo, case 2
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// Optional stereo, case 2
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_hard",
+									"input_audio": "MERGED.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						break;
@@ -1148,559 +1074,288 @@ $(document).ready(async function() {
 					case "2":
 						if (selectedOutputFileType == 1) { // Audio only compressed aac
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_format": "M1Spatial",
-										"output_format": "M1Horizon",
-										"output_channelnum": "0",
-										"input_filename": "MERGED.wav",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_format": "M1Spatial",
-										"output_format": "M1Horizon",
-										"output_channelnum": "0",
-										"input_filename": "MERGED.wav",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_format": "M1Spatial",
+									"output_format": "M1Horizon",
+									"output_channelnum": "0",
+									"input_filename": "MERGED.wav",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_m4a",
+									"input_filename": "output_audio.wav",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_format": "M1Spatial",
-										"output_format": "M1Horizon",
-										"output_channelnum": "0",
-										"input_filename": "MERGED.wav",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a_plus_stereo",
-										"input_filename": "MERGED.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// Optional stereo
-									// This case cannot be possible due to conversion issues of Spatial+ST to Horizon without ST
-									// Hold or remove this until solution is decided on, Horizon+ST 4+2 channels or 6 channel video
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_format": "M1Spatial",
-										"output_format": "M1Horizon",
-										"output_channelnum": "0",
-										"input_filename": "MERGED.wav",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a_plus_stereo",
-										"input_filename": "MERGED.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": outputVideoFilename
-									});
-								}
+								// Optional stereo
+								// This case cannot be possible due to conversion issues of Spatial+ST to Horizon without ST
+								// Hold or remove this until solution is decided on, Horizon+ST 4+2 channels or 6 channel video
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_format": "M1Spatial",
+									"output_format": "M1Horizon",
+									"output_channelnum": "0",
+									"input_filename": "MERGED.wav",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_m4a_plus_stereo",
+									"input_filename": "MERGED.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 11) { // Audio only compressed ogg
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_format": "M1Spatial",
-										"output_format": "M1Horizon",
-										"output_channelnum": "0",
-										"input_filename": "MERGED.wav",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_ogg",
-										"input_filename": "output_audio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_format": "M1Spatial",
-										"output_format": "M1Horizon",
-										"output_channelnum": "0",
-										"input_filename": "MERGED.wav",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_ogg",
-										"input_filename": "output_audio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_format": "M1Spatial",
+									"output_format": "M1Horizon",
+									"output_channelnum": "0",
+									"input_filename": "MERGED.wav",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_ogg",
+									"input_filename": "output_audio.wav",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_format": "M1Spatial",
-										"output_format": "M1Horizon",
-										"output_channelnum": "0",
-										"input_filename": "MERGED.wav",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_ogg_plus_stereo",
-										"input_filename": "MERGED.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// Optional stereo
-									// This case cannot be possible due to conversion issues of Spatial+ST to Horizon without ST
-									// Hold or remove this until solution is decided on, Horizon+ST 4+2 channels or 6 channel video
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_format": "M1Spatial",
-										"output_format": "M1Horizon",
-										"output_channelnum": "0",
-										"input_filename": "MERGED.wav",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_ogg_plus_stereo",
-										"input_filename": "MERGED.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": outputVideoFilename
-									});
-								}
+								// Optional stereo
+								// This case cannot be possible due to conversion issues of Spatial+ST to Horizon without ST
+								// Hold or remove this until solution is decided on, Horizon+ST 4+2 channels or 6 channel video
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_format": "M1Spatial",
+									"output_format": "M1Horizon",
+									"output_channelnum": "0",
+									"input_filename": "MERGED.wav",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_ogg_plus_stereo",
+									"input_filename": "MERGED.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_format": "M1Spatial",
-										"output_format": "M1Horizon",
-										"output_channelnum": "0",
-										"input_filename": "MERGED.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_format": "M1Spatial",
-										"output_format": "M1Horizon",
-										"output_channelnum": "0",
-										"input_filename": "MERGED.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_format": "M1Spatial",
+									"output_format": "M1Horizon",
+									"output_channelnum": "0",
+									"input_filename": "MERGED.wav",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_format": "M1Spatial",
-										"output_format": "M1Horizon",
-										"output_channelnum": "0",
-										"input_filename": "MERGED.wav",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// Optional stereo
-									// This case cannot be possible due to conversion issues of Spatial+ST to Horizon without ST
-									// Hold or remove this until solution is decided on, Horizon+ST 4+2 channels or 6 channel video
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_format": "M1Spatial",
-										"output_format": "M1Horizon",
-										"output_channelnum": "0",
-										"input_filename": "MERGED.wav",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": outputVideoFilename
-									});
-								}
+								// Optional stereo
+								// This case cannot be possible due to conversion issues of Spatial+ST to Horizon without ST
+								// Hold or remove this until solution is decided on, Horizon+ST 4+2 channels or 6 channel video
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_format": "M1Spatial",
+									"output_format": "M1Horizon",
+									"output_channelnum": "0",
+									"input_filename": "MERGED.wav",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_format": "M1Spatial",
-										"output_format": "M1Horizon",
-										"output_channelnum": "0",
-										"input_filename": "MERGED.wav",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "output_audio.m4a"
-									})
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_format": "M1Spatial",
-										"output_format": "M1Horizon",
-										"output_channelnum": "0",
-										"input_filename": "MERGED.wav",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "output_audio.m4a"
-									})
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_format": "M1Spatial",
+									"output_format": "M1Horizon",
+									"output_channelnum": "0",
+									"input_filename": "MERGED.wav",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_m4a",
+									"input_filename": "output_audio.wav",
+									"output_filename": "output_audio.m4a"
+								})
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.m4a",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_format": "M1Spatial",
-										"output_format": "M1Horizon",
-										"output_channelnum": "0",
-										"input_filename": "MERGED.wav",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a_plus_stereo",
-										"input_filename": "MERGED.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "output_audio.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// Optional stereo
-									// This case cannot be possible due to conversion issues of Spatial+ST to Horizon without ST
-									// Hold or remove this until solution is decided on, Horizon+ST 4+2 channels or 6 channel video
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_format": "M1Spatial",
-										"output_format": "M1Horizon",
-										"output_channelnum": "0",
-										"input_filename": "MERGED.wav",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a_plus_stereo",
-										"input_filename": "MERGED.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "output_audio.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// Optional stereo
+								// This case cannot be possible due to conversion issues of Spatial+ST to Horizon without ST
+								// Hold or remove this until solution is decided on, Horizon+ST 4+2 channels or 6 channel video
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_format": "M1Spatial",
+									"output_format": "M1Horizon",
+									"output_channelnum": "0",
+									"input_filename": "MERGED.wav",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_m4a_plus_stereo",
+									"input_filename": "MERGED.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "output_audio.m4a"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.m4a",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_format": "M1Spatial",
-										"output_format": "M1Horizon",
-										"output_channelnum": "0",
-										"input_filename": "MERGED.wav",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_format": "M1Spatial",
-										"output_format": "M1Horizon",
-										"output_channelnum": "0",
-										"input_filename": "MERGED.wav",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_format": "M1Spatial",
+									"output_format": "M1Horizon",
+									"output_channelnum": "0",
+									"input_filename": "MERGED.wav",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_hard",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_format": "M1Spatial",
-										"output_format": "M1Horizon",
-										"output_channelnum": "0",
-										"input_filename": "MERGED.wav",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// Optional stereo
-									// This case cannot be possible due to conversion issues of Spatial+ST to Horizon without ST
-									// Hold or remove this until solution is decided on, Horizon+ST 4+2 channels or 6 channel video
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_format": "M1Spatial",
-										"output_format": "M1Horizon",
-										"output_channelnum": "0",
-										"input_filename": "MERGED.wav",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// Optional stereo
+								// This case cannot be possible due to conversion issues of Spatial+ST to Horizon without ST
+								// Hold or remove this until solution is decided on, Horizon+ST 4+2 channels or 6 channel video
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_format": "M1Spatial",
+									"output_format": "M1Horizon",
+									"output_channelnum": "0",
+									"input_filename": "MERGED.wav",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						break;
@@ -1710,567 +1365,272 @@ $(document).ready(async function() {
 					case "3":
 						if (selectedOutputFileType == 1) { // Audio only compressed aac
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 5
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 5
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "M1HorizonPairs",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_m4a",
+									"input_filename": "output_audio.wav",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// Optional stereo, case 6
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								// Optional stereo, case 6
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "M1HorizonPairs",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_m4a",
+									"input_filename": "output_audio.wav",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 11) { // Audio only compressed ogg
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_ogg",
-										"input_filename": "output_audio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 5
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_ogg",
-										"input_filename": "output_audio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 5
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "M1HorizonPairs",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_ogg",
+									"input_filename": "output_audio.wav",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_ogg",
-										"input_filename": "output_audio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// Optional stereo, case 6
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_ogg",
-										"input_filename": "output_audio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								// Optional stereo, case 6
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "M1HorizonPairs",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_ogg",
+									"input_filename": "output_audio.wav",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 5
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 5
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "M1HorizonPairs",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// Optional stereo, case 6
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								// Optional stereo, case 6
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "M1HorizonPairs",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 5
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_output",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 5
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_output",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "M1HorizonPairs",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_m4a",
+									"input_filename": "output_audio.wav",
+									"output_filename": "MERGED.m4a"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_hard",
+									"input_audio": "MERGED.m4a",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// Optional stereo, case 6
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// Optional stereo, case 6
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "M1HorizonPairs",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_m4a",
+									"input_filename": "output_audio.wav",
+									"output_filename": "MERGED.m4a"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_hard",
+									"input_audio": "MERGED.m4a",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 5
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 5
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "M1HorizonPairs",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "output_audio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_hard",
+									"input_audio": "MERGED.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 5
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 5
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "M1HorizonPairs",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_hard",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						break;
@@ -2283,249 +1643,119 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "make_4x2_audio_to_video",
-										"input_filename": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "make_4x2_audio_to_video",
-										"input_filename": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "M1HorizonPairs",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "make_4x2_audio_to_video",
+									"input_filename": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "make_4x2_audio_to_video",
-										"input_filename": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// Optional stereo, case 8
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "make_4x2_audio_to_video",
-										"input_filename": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// Optional stereo, case 8
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "M1HorizonPairs",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "make_4x2_audio_to_video",
+									"input_filename": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "make_4x2_audio_to_video",
-										"input_filename": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "make_4x2_audio_to_video",
-										"input_filename": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "M1HorizonPairs",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "make_4x2_audio_to_video",
+									"input_filename": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "make_4x2_audio_to_video",
-										"input_filename": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "M1HorizonPairs",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "make_4x2_audio_to_video",
-										"input_filename": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "M1HorizonPairs",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "make_4x2_audio_to_video",
+									"input_filename": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						break;
@@ -2534,1763 +1764,868 @@ $(document).ready(async function() {
 					case "5":
 						if (selectedOutputFileType == 1) { // Audio only compressed aac
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								//GAIN UTILITY FOR oFOA
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "ACNSN3D",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_m4a",
+									"input_filename": "output_audio.wav",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a_plus_stereo",
-										"input_filename": "output_audio.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// Optional stereo
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a_plus_stereo",
-										"input_filename": "output_audio.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": outputVideoFilename
-									});
-								}
+								// Optional stereo
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								//GAIN UTILITY FOR oFOA
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "ACNSN3D",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_m4a_plus_stereo",
+									"input_filename": "output_audio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 11) { // Audio only compressed ogg
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_ogg",
-										"input_filename": "output_audio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_ogg",
-										"input_filename": "output_audio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								//GAIN UTILITY FOR oFOA
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "ACNSN3D",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_ogg",
+									"input_filename": "output_audio.wav",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_ogg_plus_stereo",
-										"input_filename": "output_audio.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// Optional stereo
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_ogg_plus_stereo",
-										"input_filename": "output_audio.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": outputVideoFilename
-									});
-								}
+								// Optional stereo
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								//GAIN UTILITY FOR oFOA
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "ACNSN3D",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_ogg_plus_stereo",
+									"input_filename": "output_audio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									// processingRequest.push({"process_kind": "ffmpeg-gain",
-									//												 "input_filename": "MERGED.wav",
-									//												 "gain": "0.204",
-									//												 "output_filename": "MERGEDgain.wav"});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								//GAIN UTILITY FOR oFOA
+								// processingRequest.push({"process_kind": "ffmpeg-gain",
+								//												 "input_filename": "MERGED.wav",
+								//												 "gain": "0.204",
+								//												 "output_filename": "MERGEDgain.wav"});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "ACNSN3D",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "reordered.aif",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a_plus_stereo",
-										"input_filename": "output_audio.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": inputAudioFilename,
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a_plus_stereo",
-										"input_filename": "output_audio.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "inputspatialaudio.wav",
+									"input_format": "M1Spatial",
+									"output_format": "ACNSN3D",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_m4a_plus_stereo",
+									"input_filename": "output_audio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								//GAIN UTILITY FOR oFOA
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "ACNSN3D",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_m4a",
+									"input_filename": "output_audio.wav",
+									"output_filename": "MERGED.m4a"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_hard",
+									"input_audio": "MERGED.m4a",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a_plus_stereo",
-										"input_filename": "output_audio.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// Optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a_plus_stereo",
-										"input_filename": "output_audio.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// Optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "ACNSN3D",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_m4a_plus_stereo",
+									"input_filename": "output_audio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.m4a"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_hard",
+									"input_audio": "MERGED.m4a",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 4) { // Audio & Video uncompressed 
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								//GAIN UTILITY FOR oFOA
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "ACNSN3D",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_m4a",
+									"input_filename": "output_audio.wav",
+									"output_filename": "MERGED.m4a"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_hard",
+									"input_audio": "MERGED.m4a",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_audio": "output_audio.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// Optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_audio": "output_audio.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// Optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "ACNSN3D",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_audio": "output_audio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_hard",
+									"input_audio": "MERGED.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						//TODO: look into why I need to reorder ACNSN3D to work!?!?!?!?
 						if (selectedOutputFileType == 5) { // Audio & Video compressed MONOSCOPIC
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": "videooutput_forinject.mp4"
-									});
-									processingRequest.push({
-										"process_kind": "youtube-meta",
-										"videoScopic": "none",
-										"input_filename": "videooutput_forinject.mp4",
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": "videooutput_forinject.mp4"
-									});
-									processingRequest.push({
-										"process_kind": "youtube-meta",
-										"videoScopic": "none",
-										"input_filename": "videooutput_forinject.mp4",
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								//GAIN UTILITY FOR oFOA
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "ACNSN3D",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_m4a",
+									"input_filename": "output_audio.wav",
+									"output_filename": "MERGED.m4a"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_hard",
+									"input_audio": "MERGED.m4a",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": "videooutput_forinject.mp4"
+								});
+								processingRequest.push({
+									"process_kind": "youtube-meta",
+									"videoScopic": "none",
+									"input_filename": "videooutput_forinject.mp4",
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"stereo_filename": inputStaticStereoFilename,
-										"input_filename": "reordered.aif",
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": "videooutput_forinject.mp4"
-									});
-									processingRequest.push({
-										"process_kind": "youtube-meta",
-										"videoScopic": "none",
-										"input_filename": "videooutput_forinject.mp4",
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// Optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"stereo_filename": inputStaticStereoFilename,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": "videooutput_forinject.mp4"
-									});
-									processingRequest.push({
-										"process_kind": "youtube-meta",
-										"videoScopic": "none",
-										"input_filename": "videooutput_forinject.mp4",
-										"output_video": outputVideoFilename
-									});
-								}
+								// Optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"stereo_filename": inputStaticStereoFilename,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "ACNSN3D",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_m4a",
+									"input_filename": "output_audio.wav",
+									"output_filename": "MERGED.m4a"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_hard",
+									"input_audio": "MERGED.m4a",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": "videooutput_forinject.mp4"
+								});
+								processingRequest.push({
+									"process_kind": "youtube-meta",
+									"videoScopic": "none",
+									"input_filename": "videooutput_forinject.mp4",
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						//TODO: look into why I need to reorder ACNSN3D to work!?!?!?!?
 						if (selectedOutputFileType == 6) { // Audio & Video compressed TOP/BOTTOM STEREOSCOPIC 
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": "videooutput_forinject.mp4"
-									});
-									processingRequest.push({
-										"process_kind": "youtube-meta",
-										"videoScopic": "top-bottom",
-										"input_filename": "videooutput_forinject.mp4",
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 9
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": "videooutput_forinject.mp4"
-									});
-									processingRequest.push({
-										"process_kind": "youtube-meta",
-										"videoScopic": "top-bottom",
-										"input_filename": "videooutput_forinject.mp4",
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 9
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								//GAIN UTILITY FOR oFOA
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "ACNSN3D",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_m4a",
+									"input_filename": "output_audio.wav",
+									"output_filename": "MERGED.m4a"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_hard",
+									"input_audio": "MERGED.m4a",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": "videooutput_forinject.mp4"
+								});
+								processingRequest.push({
+									"process_kind": "youtube-meta",
+									"videoScopic": "top-bottom",
+									"input_filename": "videooutput_forinject.mp4",
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": "videooutput_forinject.mp4"
-									});
-									processingRequest.push({
-										"process_kind": "youtube-meta",
-										"videoScopic": "top-bottom",
-										"input_filename": "videooutput_forinject.mp4",
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// Optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": "videooutput_forinject.mp4"
-									});
-									processingRequest.push({
-										"process_kind": "youtube-meta",
-										"videoScopic": "top-bottom",
-										"input_filename": "videooutput_forinject.mp4",
-										"output_video": outputVideoFilename
-									});
-								}
+								// Optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "ACNSN3D",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_m4a",
+									"input_filename": "output_audio.wav",
+									"output_filename": "MERGED.m4a"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_hard",
+									"input_audio": "MERGED.m4a",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": "videooutput_forinject.mp4"
+								});
+								processingRequest.push({
+									"process_kind": "youtube-meta",
+									"videoScopic": "top-bottom",
+									"input_filename": "videooutput_forinject.mp4",
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						//TODO: look into why I need to reorder ACNSN3D to work!?!?!?!?
 						if (selectedOutputFileType == 7) { // Audio & Video compressed LEFT/RIGHT STEREOSCOPIC 
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": "videooutput_forinject.mp4"
-									});
-									processingRequest.push({
-										"process_kind": "youtube-meta",
-										"videoScopic": "left-right",
-										"input_filename": "videooutput_forinject.mp4",
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": "videooutput_forinject.mp4"
-									});
-									processingRequest.push({
-										"process_kind": "youtube-meta",
-										"videoScopic": "left-right",
-										"input_filename": "videooutput_forinject.mp4",
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								//GAIN UTILITY FOR oFOA
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "ACNSN3D",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_m4a",
+									"input_filename": "output_audio.wav",
+									"output_filename": "MERGED.m4a"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_hard",
+									"input_audio": "MERGED.m4a",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": "videooutput_forinject.mp4"
+								});
+								processingRequest.push({
+									"process_kind": "youtube-meta",
+									"videoScopic": "left-right",
+									"input_filename": "videooutput_forinject.mp4",
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									})
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": "videooutput_forinject.mp4"
-									});
-									processingRequest.push({
-										"process_kind": "youtube-meta",
-										"videoScopic": "left-right",
-										"input_filename": "videooutput_forinject.mp4",
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// Optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"outputFilename": "MERGED.wav"
-									})
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": "videooutput_forinject.mp4"
-									});
-									processingRequest.push({
-										"process_kind": "youtube-meta",
-										"videoScopic": "left-right",
-										"input_filename": "videooutput_forinject.mp4",
-										"output_video": outputVideoFilename
-									});
-								}
+								// Optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"outputFilename": "MERGED.wav"
+								})
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "ACNSN3D",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_m4a",
+									"input_filename": "output_audio.wav",
+									"output_filename": "MERGED.m4a"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_hard",
+									"input_audio": "MERGED.m4a",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": "videooutput_forinject.mp4"
+								});
+								processingRequest.push({
+									"process_kind": "youtube-meta",
+									"videoScopic": "left-right",
+									"input_filename": "videooutput_forinject.mp4",
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						//TODO: look into why I need to reorder ACNSN3D to work!?!?!?!?
 						if (selectedOutputFileType == 8) { // Audio & Video uncompressed MONOSCOPIC
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": "videooutput_forinject.mov"
-									});
-									processingRequest.push({
-										"process_kind": "youtube-meta",
-										"videoScopic": "none",
-										"input_filename": "videooutput_forinject.mov",
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": "videooutput_forinject.mov"
-									});
-									processingRequest.push({
-										"process_kind": "youtube-meta",
-										"videoScopic": "none",
-										"input_filename": "videooutput_forinject.mov",
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								//GAIN UTILITY FOR oFOA
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "ACNSN3D",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": "videooutput_forinject.mov"
+								});
+								processingRequest.push({
+									"process_kind": "youtube-meta",
+									"videoScopic": "none",
+									"input_filename": "videooutput_forinject.mov",
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": "videooutput_forinject.mov"
-									});
-									processingRequest.push({
-										"process_kind": "youtube-meta",
-										"videoScopic": "none",
-										"input_filename": "videooutput_forinject.mov",
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": "videooutput_forinject.mov"
-									});
-									processingRequest.push({
-										"process_kind": "youtube-meta",
-										"videoScopic": "none",
-										"input_filename": "videooutput_forinject.mov",
-										"output_video": outputVideoFilename
-									});
-								}
+								// optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								//GAIN UTILITY FOR oFOA
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "ACNSN3D",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": "videooutput_forinject.mov"
+								});
+								processingRequest.push({
+									"process_kind": "youtube-meta",
+									"videoScopic": "none",
+									"input_filename": "videooutput_forinject.mov",
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						//TODO: look into why I need to reorder ACNSN3D to work!?!?!?!?
 						if (selectedOutputFileType == 9) { // Audio & Video uncompressed TOP/BOTTOM STEREOSCOPIC 
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": "videooutput_forinject.mov"
-									});
-									processingRequest.push({
-										"process_kind": "youtube-meta",
-										"videoScopic": "top-bottom",
-										"input_filename": "videooutput_forinject.mov",
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": "videooutput_forinject.mov"
-									});
-									processingRequest.push({
-										"process_kind": "youtube-meta",
-										"videoScopic": "top-bottom",
-										"input_filename": "videooutput_forinject.mov",
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								//GAIN UTILITY FOR oFOA
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "ACNSN3D",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": "videooutput_forinject.mov"
+								});
+								processingRequest.push({
+									"process_kind": "youtube-meta",
+									"videoScopic": "top-bottom",
+									"input_filename": "videooutput_forinject.mov",
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": "videooutput_forinject.mov"
-									});
-									processingRequest.push({
-										"process_kind": "youtube-meta",
-										"videoScopic": "top-bottom",
-										"input_filename": "videooutput_forinject.mov",
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": "videooutput_forinject.mov"
-									});
-									processingRequest.push({
-										"process_kind": "youtube-meta",
-										"videoScopic": "top-bottom",
-										"input_filename": "videooutput_forinject.mov",
-										"output_video": outputVideoFilename
-									});
-								}
+								// optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								//GAIN UTILITY FOR oFOA
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "ACNSN3D",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": "videooutput_forinject.mov"
+								});
+								processingRequest.push({
+									"process_kind": "youtube-meta",
+									"videoScopic": "top-bottom",
+									"input_filename": "videooutput_forinject.mov",
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						//TODO: look into why I need to reorder ACNSN3D to work!?!?!?!?
 						if (selectedOutputFileType == 10) { // Audio & Video uncompressed LEFT/RIGHT STEREOSCOPIC 
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": "videooutput_forinject.mov"
-									});
-									processingRequest.push({
-										"process_kind": "youtube-meta",
-										"videoScopic": "left-right",
-										"input_filename": "videooutput_forinject.mov",
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 9
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": "videooutput_forinject.mov"
-									});
-									processingRequest.push({
-										"process_kind": "youtube-meta",
-										"videoScopic": "left-right",
-										"input_filename": "videooutput_forinject.mov",
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 9
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								//GAIN UTILITY FOR oFOA
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "ACNSN3D",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": "videooutput_forinject.mov"
+								});
+								processingRequest.push({
+									"process_kind": "youtube-meta",
+									"videoScopic": "left-right",
+									"input_filename": "videooutput_forinject.mov",
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": "videooutput_forinject.mov"
-									});
-									processingRequest.push({
-										"process_kind": "youtube-meta",
-										"videoScopic": "left-right",
-										"input_filename": "videooutput_forinject.mov",
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "ACNSN3D",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": "videooutput_forinject.mov"
-									});
-									processingRequest.push({
-										"process_kind": "youtube-meta",
-										"videoScopic": "left-right",
-										"input_filename": "videooutput_forinject.mov",
-										"output_video": outputVideoFilename
-									});
-								}
+								// optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								//GAIN UTILITY FOR oFOA
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "ACNSN3D",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": "videooutput_forinject.mov"
+								});
+								processingRequest.push({
+									"process_kind": "youtube-meta",
+									"videoScopic": "left-right",
+									"input_filename": "videooutput_forinject.mov",
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						break;
@@ -4299,677 +2634,342 @@ $(document).ready(async function() {
 					case "6":
 						if (selectedOutputFileType == 1) { // Audio only compressed aac
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMa",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMa",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								//GAIN UTILITY FOR oFOA
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FuMa",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_m4a",
+									"input_filename": "output_audio.wav",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMa",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a_plus_stereo",
-										"input_filename": "output_audio.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// optional stereo
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMa",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a_plus_stereo",
-										"input_filename": "output_audio.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": outputVideoFilename
-									});
-								}
+								// optional stereo
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								//GAIN UTILITY FOR oFOA
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FuMa",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_m4a_plus_stereo",
+									"input_filename": "output_audio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 11) { // Audio only compressed ogg
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMa",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_ogg",
-										"input_filename": "output_audio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMa",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_ogg",
-										"input_filename": "output_audio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								//GAIN UTILITY FOR oFOA
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FuMa",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_ogg",
+									"input_filename": "output_audio.wav",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMa",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_ogg_plus_stereo",
-										"input_filename": "output_audio.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// optional stereo
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMa",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_ogg_plus_stereo",
-										"input_filename": "output_audio.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": outputVideoFilename
-									});
-								}
+								// optional stereo
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								//GAIN UTILITY FOR oFOA
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FuMa",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_ogg_plus_stereo",
+									"input_filename": "output_audio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMa",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMa",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								//GAIN UTILITY FOR oFOA
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FuMa",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMa",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "output_audio.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"outputFilename": outputVideoFilename
-									});
-								} else {
-									// optional stereo
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMa",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "output_audio.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"outputFilename": outputVideoFilename
-									});
-								}
+								// optional stereo
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								//GAIN UTILITY FOR oFOA
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FuMa",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "output_audio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"outputFilename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMa",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMa",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								//GAIN UTILITY FOR oFOA
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FuMa",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_m4a",
+									"input_filename": "output_audio.wav",
+									"output_filename": "MERGED.m4a"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_hard",
+									"input_audio": "MERGED.m4a",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMa",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a_plus_stereo",
-										"input_filename": "output_audio.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									//GAIN UTILITY FOR oFOA
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMa",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_m4a_plus_stereo",
-										"input_filename": "output_audio.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								//GAIN UTILITY FOR oFOA
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FuMa",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_m4a_plus_stereo",
+									"input_filename": "output_audio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.m4a"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_hard",
+									"input_audio": "MERGED.m4a",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMa",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMa",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FuMa",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMa",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "output_audio.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMa",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "4_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "output_audio.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "MERGED.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FuMa",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "4_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "output_audio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_hard",
+									"input_audio": "MERGED.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						break;
@@ -4978,54 +2978,29 @@ $(document).ready(async function() {
 					case "7":
 						if (selectedOutputFileType == 1) { // Audio only compressed aac
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3DO2A",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3DO2A",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "ACNSN3DO2A",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							} else {
 								// Optional stereo, case 14
 								// REMOVE UNTIL VERIFY SUPPORT IN PLAYBACK
@@ -5033,54 +3008,29 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3DO2A",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3DO2A",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "ACNSN3DO2A",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							} else {
 								// Optional stereo, case 14
 								// REMOVE UNTIL VERIFY SUPPORT IN PLAYBACK
@@ -5088,76 +3038,40 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3DO2A",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3DO2A",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "ACNSN3DO2A",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
 								// Optional stereo, case 14
 								// REMOVE UNTIL VERIFY SUPPORT IN PLAYBACK
@@ -5165,76 +3079,40 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3DO2A",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3DO2A",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "ACNSN3DO2A",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
 								// Optional stereo, case 14
 								// REMOVE UNTIL VERIFY SUPPORT IN PLAYBACK
@@ -5248,54 +3126,29 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMaO2A",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMaO2A",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FuMaO2A",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							} else {
 								// Optional stereo, case 16
 								// REMOVE UNTIL VERIFY SUPPORT IN PLAYBACK
@@ -5303,76 +3156,40 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMaO2A",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMaO2A",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FuMaO2A",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
 								// Optional stereo, case 16
 								// REMOVE UNTIL VERIFY SUPPORT IN PLAYBACK
@@ -5380,76 +3197,40 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMaO2A",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "ffmpeg-gain",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "MERGED.wav",
-										"gain": "0.204",
-										"output_filename": "MERGEDgain.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGEDgain.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMaO2A",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "ffmpeg-gain",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "MERGED.wav",
+									"gain": "0.204",
+									"output_filename": "MERGEDgain.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGEDgain.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FuMaO2A",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
 								// Optional stereo, case 16
 								// REMOVE UNTIL VERIFY SUPPORT IN PLAYBACK
@@ -5461,529 +3242,250 @@ $(document).ready(async function() {
 					case "9":
 						if (selectedOutputFileType == 1) { // Audio only compressed aac
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneFilm_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_m4a",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneFilm_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_m4a",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FiveOneFilm_Cinema",
+									"output_channelnum": "0",
+									"output_filename": "outputaudio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "6_channel_pcm_to_m4a",
+									"input_filename": "outputaudio.wav",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneFilm_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_m4a",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneFilm_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_m4a",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "FiveOneFilm_Cinema",
+									"output_channelnum": "0",
+									"output_filename": "outputaudio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "6_channel_pcm_to_m4a",
+									"input_filename": "outputaudio.wav",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 11) { // Audio only compressed ogg
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneFilm_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_ogg",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneFilm_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_ogg",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FiveOneFilm_Cinema",
+									"output_channelnum": "0",
+									"output_filename": "outputaudio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "6_channel_pcm_to_ogg",
+									"input_filename": "outputaudio.wav",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneFilm_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_ogg",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneFilm_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_ogg",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "FiveOneFilm_Cinema",
+									"output_channelnum": "0",
+									"output_filename": "outputaudio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "6_channel_pcm_to_ogg",
+									"input_filename": "outputaudio.wav",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneFilm_Cinema",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneFilm_Cinema",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FiveOneFilm_Cinema",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneFilm_Cinema",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneFilm_Cinema",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "FiveOneFilm_Cinema",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneFilm_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneFilm_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FiveOneFilm_Cinema",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneFilm_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneFilm_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "FiveOneFilm_Cinema",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneFilm_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneFilm_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FiveOneFilm_Cinema",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneFilm_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneFilm_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "FiveOneFilm_Cinema",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						break;
@@ -5992,529 +3494,250 @@ $(document).ready(async function() {
 					case "10":
 						if (selectedOutputFileType == 1) { // Audio only compressed aac
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_m4a",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_m4a",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FiveOneSmpte",
+									"output_channelnum": "0",
+									"output_filename": "outputaudio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "6_channel_pcm_to_m4a",
+									"input_filename": "outputaudio.wav",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_m4a",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_m4a",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "FiveOneSmpte",
+									"output_channelnum": "0",
+									"output_filename": "outputaudio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "6_channel_pcm_to_m4a",
+									"input_filename": "outputaudio.wav",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 11) { // Audio only compressed ogg
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_ogg",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_ogg",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FiveOneSmpte",
+									"output_channelnum": "0",
+									"output_filename": "outputaudio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "6_channel_pcm_to_ogg",
+									"input_filename": "outputaudio.wav",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_ogg",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_ogg",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "FiveOneSmpte",
+									"output_channelnum": "0",
+									"output_filename": "outputaudio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "6_channel_pcm_to_ogg",
+									"input_filename": "outputaudio.wav",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FiveOneSmpte",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "FiveOneSmpte",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FiveOneSmpte",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "FiveOneSmpte",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 4) { // Audio & video uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FiveOneSmpte",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "FiveOneSmpte",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						break;
@@ -6523,529 +3746,250 @@ $(document).ready(async function() {
 					case "11":
 						if (selectedOutputFileType == 1) { // Audio only compressed aac
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneDts",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_m4a",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneDts",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_m4a",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FiveOneDts",
+									"output_channelnum": "0",
+									"output_filename": "outputaudio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "6_channel_pcm_to_m4a",
+									"input_filename": "outputaudio.wav",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneDts",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_m4a",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneDts",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_m4a",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "FiveOneDts",
+									"output_channelnum": "0",
+									"output_filename": "outputaudio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "6_channel_pcm_to_m4a",
+									"input_filename": "outputaudio.wav",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 11) { // Audio only compressed ogg
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneDts",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_ogg",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneDts",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_ogg",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FiveOneDts",
+									"output_channelnum": "0",
+									"output_filename": "outputaudio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "6_channel_pcm_to_ogg",
+									"input_filename": "outputaudio.wav",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneDts",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_ogg",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneDts",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_ogg",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "FiveOneDts",
+									"output_channelnum": "0",
+									"output_filename": "outputaudio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "6_channel_pcm_to_ogg",
+									"input_filename": "outputaudio.wav",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneDts",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneDts",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FiveOneDts",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneDts",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneDts",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "FiveOneDts",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneDts",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneDts",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FiveOneDts",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneDts",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneDts",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "FiveOneDts",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneDts",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneDts",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FiveOneDts",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneDts",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// optional stereo
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneDts",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// optional stereo
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "FiveOneDts",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						break;
@@ -7056,81 +4000,38 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOh",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOh",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FiveOh",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOh",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOh",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "FiveOh",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
@@ -7143,569 +4044,270 @@ $(document).ready(async function() {
 					case "12":
 						if (selectedOutputFileType == 1) { // Audio only compressed aac
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "SevenOnePt_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_m4a",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "SevenOnePt_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_m4a",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "SevenOnePt_Cinema",
+									"output_channelnum": "0",
+									"output_filename": "outputaudio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_m4a",
+									"input_filename": "outputaudio.wav",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "SevenOnePt_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_m4a",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "SevenOnePt_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_m4a",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "SevenOnePt_Cinema",
+									"output_channelnum": "0",
+									"output_filename": "outputaudio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_m4a",
+									"input_filename": "outputaudio.wav",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 11) { // Audio only compressed ogg
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "SevenOnePt_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_ogg",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "SevenOnePt_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_ogg",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "SevenOnePt_Cinema",
+									"output_channelnum": "0",
+									"output_filename": "outputaudio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_ogg",
+									"input_filename": "outputaudio.wav",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "SevenOnePt_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_ogg",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "SevenOnePt_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "outputaudio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_ogg",
-										"input_filename": "outputaudio.wav",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "SevenOnePt_Cinema",
+									"output_channelnum": "0",
+									"output_filename": "outputaudio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_ogg",
+									"input_filename": "outputaudio.wav",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "SevenOnePt_Cinema",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "SevenOnePt_Cinema",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "SevenOnePt_Cinema",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "SevenOnePt_Cinema",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "SevenOnePt_Cinema",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "SevenOnePt_Cinema",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "SevenOnePt_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "SevenOnePt_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "SevenOnePt_Cinema",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_m4a",
+									"input_filename": "output_audio.wav",
+									"output_filename": "MERGED.m4a"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "MERGED.m4a",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "SevenOnePt_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "SevenOnePt_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "SevenOnePt_Cinema",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_m4a",
+									"input_filename": "output_audio.wav",
+									"output_filename": "MERGED.m4a"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "MERGED.m4a",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "SevenOnePt_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "SevenOnePt_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "SevenOnePt_Cinema",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_m4a",
+									"input_filename": "output_audio.wav",
+									"output_filename": "MERGED.m4a"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "MERGED.m4a",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "SevenOnePt_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "SevenOnePt_Cinema",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_m4a",
-										"input_filename": "output_audio.wav",
-										"output_filename": "MERGED.m4a"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "MERGED.m4a",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "SevenOnePt_Cinema",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_m4a",
+									"input_filename": "output_audio.wav",
+									"output_filename": "MERGED.m4a"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "MERGED.m4a",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						break;
@@ -7716,81 +4318,38 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "SevenZero_Cinema",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "SevenZero_Cinema",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "SevenZero_Cinema",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "SevenZero_Cinema",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "SevenZero_Cinema",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "SevenZero_Cinema",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
@@ -7805,90 +4364,40 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "TBE",
-										"output_channelnum": "0",
-										"output_filename": "makeTBE.wav"
-									});
-									var outputVideoFilename = outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf('.'))
-									log.info("output filename: ", outputVideoFilename)
-									processingRequest.push({
-										"process_kind": "TBE_copy_to_dir",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": inputAudioFilename,
-										"input_format": "M1Spatial",
-										"output_format": "TBE",
-										"output_channelnum": "0",
-										"output_filename": "makeTBE.wav"
-									});
-									var outputVideoFilename = outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf('.'))
-									log.info("output filename: ", outputVideoFilename)
-									processingRequest.push({
-										"process_kind": "TBE_copy_to_dir",
-										"output_filename": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "inputspatialaudio.wav",
+									"input_format": "M1Spatial",
+									"output_format": "TBE",
+									"output_channelnum": "0",
+									"output_filename": "makeTBE.wav"
+								});
+								var outputVideoFilename = outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf('.'))
+								log.info("output filename: ", outputVideoFilename)
+								processingRequest.push({
+									"process_kind": "TBE_copy_to_dir",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								// Optional stereo, case 16
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "TBE",
-										"output_channelnum": "0",
-										"output_filename": "makeTBE.wav"
-									});
-									var outputVideoFilename = outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf('.'))
-									log.info("output filename: ", outputVideoFilename)
-									processingRequest.push({
-										"process_kind": "TBE_copy_to_dir_plus_stereo",
-										"output_filename": outputVideoFilename,
-										"stereo_filename": inputStaticStereoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": inputAudioFilename,
-										"input_format": "M1Spatial",
-										"output_format": "TBE",
-										"output_channelnum": "0",
-										"output_filename": "makeTBE.wav"
-									});
-									var outputVideoFilename = outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf('.'))
-									log.info("output filename: ", outputVideoFilename)
-									processingRequest.push({
-										"process_kind": "TBE_copy_to_dir_plus_stereo",
-										"output_filename": outputVideoFilename,
-										"stereo_filename": inputStaticStereoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "inputspatialaudio.wav",
+									"input_format": "M1Spatial",
+									"output_format": "TBE",
+									"output_channelnum": "0",
+									"output_filename": "makeTBE.wav"
+								});
+								var outputVideoFilename = outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf('.'))
+								log.info("output filename: ", outputVideoFilename)
+								processingRequest.push({
+									"process_kind": "TBE_copy_to_dir_plus_stereo",
+									"output_filename": outputVideoFilename,
+									"stereo_filename": inputStaticStereoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
@@ -7904,34 +4413,16 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3DO3A",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": inputAudioFilename,
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3DO3A",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "inputspatialaudio.wav",
+									"input_format": "M1Spatial",
+									"output_format": "ACNSN3DO3A",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							} else {
 								// Optional stereo, case 16
 								// REMOVE UNTIL VERIFY SUPPORT IN PLAYBACK
@@ -7939,62 +4430,33 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3DO3A",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3DO3A",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "ACNSN3DO3A",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
 								// Optional stereo, case 16
 								// REMOVE UNTIL VERIFY SUPPORT IN PLAYBACK
@@ -8002,62 +4464,33 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3DO3A",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "ACNSN3DO3A",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "ACNSN3DO3A",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
 								// Optional stereo, case 16
 								// REMOVE UNTIL VERIFY SUPPORT IN PLAYBACK
@@ -8072,40 +4505,22 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMaO3A",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMaO3A",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FuMaO3A",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							} else {
 								// Optional stereo, case 16
 								// REMOVE UNTIL VERIFY SUPPORT IN PLAYBACK
@@ -8113,62 +4528,33 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMaO3A",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMaO3A",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FuMaO3A",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
 								// Optional stereo, case 16
 								// REMOVE UNTIL VERIFY SUPPORT IN PLAYBACK
@@ -8176,62 +4562,33 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMaO3A",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FuMaO3A",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_soft",
-										"input_audio": "output_audio.wav",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FuMaO3A",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_soft",
+									"input_audio": "output_audio.wav",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
 								// Optional stereo, case 16
 								// REMOVE UNTIL VERIFY SUPPORT IN PLAYBACK
@@ -8245,81 +4602,38 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneTwo",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneTwo",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FiveOneTwo",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneTwo",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneTwo",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "FiveOneTwo",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
@@ -8334,81 +4648,38 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveZeroTwo",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveZeroTwo",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FiveZeroTwo",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveZeroTwo",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveZeroTwo",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "FiveZeroTwo",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
@@ -8423,81 +4694,38 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneFour",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneFour",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FiveOneFour",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneFour",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneFour",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "FiveOneFour",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
@@ -8512,81 +4740,38 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveZeroFour",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveZeroFour",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FiveZeroFour",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveZeroFour",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveZeroFour",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "FiveZeroFour",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
@@ -8601,81 +4786,38 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "SevenOneSDDS",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "SevenOneSDDS",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "SevenOneSDDS",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "SevenOneSDDS",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "SevenOneSDDS",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "SevenOneSDDS",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
@@ -8690,81 +4832,38 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "SevenOneTwo",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "SevenOneTwo",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "SevenOneTwo",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "SevenOneTwo",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "SevenOneTwo",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "SevenOneTwo",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
@@ -8779,81 +4878,38 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "SevenOneFour",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "SevenOneFour",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "SevenOneFour",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "SevenOneFour",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "SevenOneFour",
-										"output_channelnum": "0",
-										"output_filename": outputVideoFilename
-									});
-								}
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "SevenOneFour",
+									"output_channelnum": "0",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
@@ -8865,109 +4921,46 @@ $(document).ready(async function() {
 						//Mach1 SDK: Unity & Unreal Engine
 					case "25":
 						if (selectedOutputFileType == 1) { // Audio only compressed aac
-							if (window.fromProTools == true) {
-								processingRequest.push({
-									"process_kind": "8_channel_ProToolsWav_to_pcm",
-									"bitdepth": window.OutputBitDepthShort,
-									"input_filename": inputAudioFilename,
-									"output_filename": "reordered.aif"
-								});
-								processingRequest.push({
-									"process_kind": "8_channel_pcm_to_wav",
-									"bitdepth": window.OutputBitDepthShort,
-									"input_filename": "reordered.aif",
-									"output_filename": "MERGED.wav"
-								});
-								var videoOutputPath = outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf("/")) + "/"
-								log.info("output path: ", videoOutputPath)
-								processingRequest.push({
-									"process_kind": "copy_to_output_dir_m4a",
-									"output_dir": videoOutputPath
-								});
-							} else {
-								processingRequest.push({
-									"process_kind": "8_channel_pcm_to_wav",
-									"bitdepth": window.OutputBitDepthShort,
-									"input_filename": inputAudioFilename,
-									"output_filename": "MERGED.wav"
-								});
-								var videoOutputPath = outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf("/")) + "/"
-								log.info("output path: ", videoOutputPath)
-								processingRequest.push({
-									"process_kind": "copy_to_output_dir_m4a",
-									"output_dir": videoOutputPath
-								});
-							}
+							processingRequest.push({
+								"process_kind": "8_channel_pcm_to_wav",
+								"bitdepth": window.OutputBitDepthShort,
+								"input_filename": "inputspatialaudio.wav",
+								"output_filename": "MERGED.wav"
+							});
+							var videoOutputPath = outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf("/")) + "/"
+							log.info("output path: ", videoOutputPath)
+							processingRequest.push({
+								"process_kind": "copy_to_output_dir_m4a",
+								"output_dir": videoOutputPath
+							});
 						}
 						if (selectedOutputFileType == 11) { // Audio only compressed ogg
-							if (window.fromProTools == true) {
-								processingRequest.push({
-									"process_kind": "8_channel_ProToolsWav_to_pcm",
-									"bitdepth": window.OutputBitDepthShort,
-									"input_filename": inputAudioFilename,
-									"output_filename": "reordered.aif"
-								});
-								processingRequest.push({
-									"process_kind": "8_channel_pcm_to_wav",
-									"bitdepth": window.OutputBitDepthShort,
-									"input_filename": "reordered.aif",
-									"output_filename": "MERGED.wav"
-								});
-								var videoOutputPath = outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf("/")) + "/"
-								log.info("output path: ", videoOutputPath)
-								processingRequest.push({
-									"process_kind": "copy_to_output_dir_ogg",
-									"output_dir": videoOutputPath
-								});
-							} else {
-								processingRequest.push({
-									"process_kind": "8_channel_pcm_to_wav",
-									"bitdepth": window.OutputBitDepthShort,
-									"input_filename": inputAudioFilename,
-									"output_filename": "MERGED.wav"
-								});
-								var videoOutputPath = outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf("/")) + "/"
-								log.info("output path: ", videoOutputPath)
-								processingRequest.push({
-									"process_kind": "copy_to_output_dir_ogg",
-									"output_dir": videoOutputPath
-								});
-							}
+							processingRequest.push({
+								"process_kind": "8_channel_pcm_to_wav",
+								"bitdepth": window.OutputBitDepthShort,
+								"input_filename": "inputspatialaudio.wav",
+								"output_filename": "MERGED.wav"
+							});
+							var videoOutputPath = outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf("/")) + "/"
+							log.info("output path: ", videoOutputPath)
+							processingRequest.push({
+								"process_kind": "copy_to_output_dir_ogg",
+								"output_dir": videoOutputPath
+							});
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
-							if (window.fromProTools == true) {
-								processingRequest.push({
-									"process_kind": "8_channel_ProToolsWav_to_pcm",
-									"bitdepth": window.OutputBitDepthShort,
-									"input_filename": inputAudioFilename,
-									"output_filename": "reordered.aif"
-								});
-								processingRequest.push({
-									"process_kind": "8_channel_pcm_to_wav",
-									"bitdepth": window.OutputBitDepthShort,
-									"input_filename": "reordered.aif",
-									"output_filename": "MERGED.wav"
-								});
-								var videoOutputPath = outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf("/")) + "/"
-								log.info("output path: ", videoOutputPath)
-								processingRequest.push({
-									"process_kind": "copy_to_output_dir_wav",
-									"output_dir": videoOutputPath
-								});
-							} else {
-								processingRequest.push({
-									"process_kind": "8_channel_pcm_to_wav",
-									"bitdepth": window.OutputBitDepthShort,
-									"input_filename": inputAudioFilename,
-									"output_filename": "MERGED.wav"
-								});
-								var videoOutputPath = outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf("/")) + "/"
-								log.info("output path: ", videoOutputPath)
-								processingRequest.push({
-									"process_kind": "copy_to_output_dir_wav",
-									"output_dir": videoOutputPath
-								});
-							}
+							processingRequest.push({
+								"process_kind": "8_channel_pcm_to_wav",
+								"bitdepth": window.OutputBitDepthShort,
+								"input_filename": "inputspatialaudio.wav",
+								"output_filename": "MERGED.wav"
+							});
+							var videoOutputPath = outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf("/")) + "/"
+							log.info("output path: ", videoOutputPath)
+							processingRequest.push({
+								"process_kind": "copy_to_output_dir_wav",
+								"output_dir": videoOutputPath
+							});
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
 						}
@@ -8983,124 +4976,62 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "spatial_to_samsungvr",
-										"input_filename": "reordered.aif",
-										"input_video": inputVideoFilename,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename
-									});
-									processingRequest.push({
-										"process_kind": "spatial_to_samsungvr",
-										"input_filename": "MERGED.wav",
-										"input_video": inputVideoFilename,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "spatial_to_samsungvr",
+									"input_filename": "MERGED.wav",
+									"input_video": inputVideoFilename,
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "spatial_to_samsungvr_plus_stereo",
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"input_video": inputVideoFilename,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// Optional stereo
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename
-									});
-									processingRequest.push({
-										"process_kind": "spatial_to_samsungvr_plus_stereo",
-										"input_filename": "MERGED.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"input_video": inputVideoFilename,
-										"output_video": outputVideoFilename
-									});
-								}
+								// Optional stereo
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "spatial_to_samsungvr_plus_stereo",
+									"input_filename": "MERGED.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"input_video": inputVideoFilename,
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "spatial_to_samsungvr",
-										"input_filename": "reordered.aif",
-										"input_video": inputVideoFilename,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename
-									});
-									processingRequest.push({
-										"process_kind": "spatial_to_samsungvr",
-										"input_filename": "MERGED.wav",
-										"input_video": inputVideoFilename,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "spatial_to_samsungvr",
+									"input_filename": "MERGED.wav",
+									"input_video": inputVideoFilename,
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "spatial_to_samsungvr_plus_stereo",
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"input_video": inputVideoFilename,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// Optional stereo
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename
-									});
-									processingRequest.push({
-										"process_kind": "spatial_to_samsungvr_plus_stereo",
-										"input_filename": "MERGED.wav",
-										"stereo_filename": inputStaticStereoFilename,
-										"input_video": inputVideoFilename,
-										"output_video": outputVideoFilename
-									});
-								}
+								// Optional stereo
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "spatial_to_samsungvr_plus_stereo",
+									"input_filename": "MERGED.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"input_video": inputVideoFilename,
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						break;
@@ -9112,254 +5043,124 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneSmpte", // L,R,C,LFE,SL,SR
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_eac3",
-										"input_filename": "output_audio.wav",
-										"output_filename": "output_audio.ac3"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "output_audio.ac3",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_eac3",
-										"input_filename": "output_audio.wav",
-										"output_filename": "output_audio.ac3"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "output_audio.ac3",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FiveOneSmpte",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "6_channel_pcm_to_eac3",
+									"input_filename": "output_audio.wav",
+									"output_filename": "output_audio.ac3"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_hard",
+									"input_audio": "output_audio.ac3",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_eac3",
-										"input_filename": "output_audio.wav",
-										"output_filename": "output_audio.ac3"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "output_audio.ac3",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "ffmpeg-mute",
-										"input_video": inputVideoFilename,
-										"output_video": "muted-video." + window.inputVideoExt
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_eac3",
-										"input_filename": "output_audio.wav",
-										"output_filename": "output_audio.ac3"
-									});
-									processingRequest.push({
-										"process_kind": "attach_audio_to_video_hard",
-										"input_audio": "output_audio.ac3",
-										"input_video": "muted-video." + window.inputVideoExt,
-										"output_video": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "ffmpeg-mute",
+									"input_video": inputVideoFilename,
+									"output_video": "muted-video." + window.inputVideoExt
+								});
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "FiveOneSmpte",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "6_channel_pcm_to_eac3",
+									"input_filename": "output_audio.wav",
+									"output_filename": "output_audio.ac3"
+								});
+								processingRequest.push({
+									"process_kind": "attach_audio_to_video_hard",
+									"input_audio": "output_audio.ac3",
+									"input_video": "muted-video." + window.inputVideoExt,
+									"output_video": outputVideoFilename
+								});
 							}
 						}
 						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
 						}
 						if (selectedOutputFileType == 14) { // Audio & Video Compressed (generated video)
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneSmpte", // L,R,C,LFE,SL,SR
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_eac3_spawnvideo",
-										"input_filename": "output_audio.wav",
-										"input_video_image": "../resources/m1blank.png",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_eac3_spawnvideo",
-										"input_filename": "output_audio.wav",
-										"input_video_image": "../resources/m1blank.png",
-										"output_filename": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial",
+									"output_format": "FiveOneSmpte",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "6_channel_pcm_to_eac3_spawnvideo",
+									"input_filename": "output_audio.wav",
+									"input_video_image": "../resources/m1blank.png",
+									"output_filename": outputVideoFilename
+								});
 							} else {
-								if (window.fromProTools == true) {
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": "reordered.aif",
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_eac3_spawnvideo",
-										"input_filename": "output_audio.wav",
-										"input_video_image": "../resources/m1blank.png",
-										"output_filename": outputVideoFilename
-									});
-								} else {
-									// No optional stereo, case 15
-									processingRequest.push({
-										"process_kind": "8_channel_pcm_to_wav_plus_stereo",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"stereo_filename": inputStaticStereoFilename,
-										"output_filename": "MERGED.wav"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_normalize",
-										"master_gain": "0",
-										"input_filename": "MERGED.wav",
-										"input_format": "M1Spatial+S",
-										"output_format": "FiveOneSmpte",
-										"output_channelnum": "0",
-										"output_filename": "output_audio.wav"
-									});
-									processingRequest.push({
-										"process_kind": "6_channel_pcm_to_eac3_spawnvideo",
-										"input_filename": "output_audio.wav",
-										"input_video_image": "../resources/m1blank.png",
-										"output_filename": outputVideoFilename
-									});
-								}
+								// No optional stereo, case 15
+								processingRequest.push({
+									"process_kind": "8_channel_pcm_to_wav_plus_stereo",
+									"bitdepth": window.OutputBitDepthShort,
+									"input_filename": "inputspatialaudio.wav",
+									"stereo_filename": inputStaticStereoFilename,
+									"output_filename": "MERGED.wav"
+								});
+								processingRequest.push({
+									"process_kind": "m1transcode_normalize",
+									"master_gain": "0",
+									"input_filename": "MERGED.wav",
+									"input_format": "M1Spatial+S",
+									"output_format": "FiveOneSmpte",
+									"output_channelnum": "0",
+									"output_filename": "output_audio.wav"
+								});
+								processingRequest.push({
+									"process_kind": "6_channel_pcm_to_eac3_spawnvideo",
+									"input_filename": "output_audio.wav",
+									"input_video_image": "../resources/m1blank.png",
+									"output_filename": outputVideoFilename
+								});
 							}
 						}
 						break;
@@ -9369,63 +5170,25 @@ $(document).ready(async function() {
 						}
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									log.info("im converting from ProTools")
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "reordered.aif",
-										"input_format": "M1Spatial",
-										"output_filename": outputVideoFilename,
-										"output_format": "DolbyAtmosSevenOneTwo",
-										"output_channelnum": "0"
-									});
-								} else {
-									// No optional stereo, case 1
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"input_filename": inputAudioFilename,
-										"input_format": "M1Spatial",
-										"output_filename": outputVideoFilename,
-										"output_format": "DolbyAtmosSevenOneTwo",
-										"output_channelnum": "0"
-									});
-								}
+								// No optional stereo, case 1
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"input_filename": "inputspatialaudio.wav",
+									"input_format": "M1Spatial",
+									"output_filename": outputVideoFilename,
+									"output_format": "DolbyAtmosSevenOneTwo",
+									"output_channelnum": "0"
+								});
 							} else {
-								if (window.fromProTools == true) {
-									log.info("im converting from ProTools")
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"master_gain": "0",
-										"input_filename": "reordered.aif",
-										"input_format": "M1SpatialS",
-										"output_filename": outputVideoFilename,
-										"output_format": "DolbyAtmosSevenOneTwo",
-										"output_channelnum": "0"
-									});
-								} else {
-									// No optional stereo, case 1
-									processingRequest.push({
-										"process_kind": "m1transcode",
-										"input_filename": inputAudioFilename,
-										"input_format": "M1SpatialS",
-										"output_filename": outputVideoFilename,
-										"output_format": "DolbyAtmosSevenOneTwo",
-										"output_channelnum": "0"
-									});
-								}
+								// No optional stereo, case 1
+								processingRequest.push({
+									"process_kind": "m1transcode",
+									"input_filename": "inputspatialaudio.wav",
+									"input_format": "M1SpatialS",
+									"output_filename": outputVideoFilename,
+									"output_format": "DolbyAtmosSevenOneTwo",
+									"output_channelnum": "0"
+								});
 							}
 						}
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
@@ -9437,35 +5200,16 @@ $(document).ready(async function() {
 					case "99":
 						if (selectedOutputFileType == 2) { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
-									log.info("im converting from ProTools")
-									processingRequest.push({
-										"process_kind": "8_channel_ProToolsWav_to_pcm",
-										"bitdepth": window.OutputBitDepthShort,
-										"input_filename": inputAudioFilename,
-										"output_filename": "reordered.aif"
-									});
-									processingRequest.push({
-										"process_kind": "m1transcode_json",
-										"input_filename": "reordered.aif",
-										"input_format": "M1Spatial",
-										"output_Json": inputJsonFilename,
-										"output_filename": outputVideoFilename,
-										"output_format": "TTPoints",
-										"output_channelnum": "0"
-									});
-								} else {
-									// No optional stereo, case 1
-									processingRequest.push({
-										"process_kind": "m1transcode_json",
-										"input_filename": inputAudioFilename,
-										"input_format": "M1Spatial",
-										"output_Json": inputJsonFilename,
-										"output_filename": outputVideoFilename,
-										"output_format": "TTPoints",
-										"output_channelnum": "0"
-									});
-								}
+								// No optional stereo, case 1
+								processingRequest.push({
+									"process_kind": "m1transcode_json",
+									"input_filename": "inputspatialaudio.wav",
+									"input_format": "M1Spatial",
+									"output_Json": inputJsonFilename,
+									"output_filename": outputVideoFilename,
+									"output_format": "TTPoints",
+									"output_channelnum": "0"
+								});
 							} else {
 								//TODO: make a case for static stereo
 							}
@@ -9473,8 +5217,6 @@ $(document).ready(async function() {
 						break;
 				}
 			}
-						
-						
 
 			(async () => {
 			  try {
@@ -9497,8 +5239,7 @@ $(document).ready(async function() {
 			  } catch (error) {
 				console.error('An error occurred:', error);
 			  }
-			})();			
-
+			})();
 		};
 
 		var outputVideoInput = $('#OutputVideo input[type="text"]');
