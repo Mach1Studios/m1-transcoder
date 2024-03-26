@@ -81,6 +81,7 @@ $(document).ready(async function() {
 		e.preventDefault();
 		$('#dragAudio,#dragStereo,#dragJson,#dragVideo').hide();
 		if (e.dataTransfer.files.length > 0) {
+			// TODO: Display indicator for detecting multiple files
 			$('#Audio input[type="text"]').val(e.dataTransfer.files[0].path);
 		}
 		window.inputAudioFiles.length = 0;
