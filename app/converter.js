@@ -90,7 +90,6 @@ $(document).ready(async function() {
 			window.inputAudioFiles[index] = f.path;
 			index++;
 		}
-		checkSpatialAudioInput(); // TODO: remove this?
 		return false;
 	};
 
@@ -104,7 +103,6 @@ $(document).ready(async function() {
 			window.inputStereoFiles[index] = f.path;
 			index++;
 		}
-		checkStereoAudioInput();
 		return false;
 	};
 
@@ -118,7 +116,6 @@ $(document).ready(async function() {
 			window.inputJsonFiles[index] = f.path;
 			index++;
 		}
-		checkJsonInput();
 		return false;
 	};
 
@@ -132,7 +129,6 @@ $(document).ready(async function() {
 			window.inputVideoFiles[index] = f.path;
 			index++;
 		}
-		checkVideoInput();
 		return false;
 	};
 
@@ -144,8 +140,14 @@ $(document).ready(async function() {
 		const dataPath = path.join(ipcRenderer.sendSync('get-app-data-path'), 'Mach1/');
 		const ffmpeg = '"' + dataPath + (isWin ? "ffmpeg.exe" : "ffmpeg") + '"'; // scriptPathClean + "/../binaries/ffmpeg" + (isWin ? ".exe" : "")
 
-		window.trim_to = ""; // reset trim_to var
-		
+		// Reset vars
+		window.trim_to = "";
+		var channelCount = 0;
+		var re = "";
+		var bitdepth = "";
+		var encoded_by = "";
+		var ext = "";
+
 		for (let filePath of window.inputAudioFiles) {
 			// checking channel count
 			try {
@@ -157,10 +159,9 @@ $(document).ready(async function() {
 					}
 				});
 			} catch (err) {
-				var bitdepth = "";
 				if (err.toString().indexOf("Audio:") >= 0) {
-					//var re = /(?<=Audio: )[^\ ]+/; // this failed because we cannot support look behinds
-					var re = /Audio:\s(\w+)/;
+					//re = /(?<=Audio: )[^\ ]+/; // this failed because we cannot support look behinds
+					re = /Audio:\s(\w+)/;
 					bitdepth = re.exec(err)[1]; // extracting file extension
 					log.info("Input BitDepth: " + bitdepth);
 					window.OutputBitDepth = bitdepth; // copy the string from ffmpeg input for -c:a call
@@ -169,38 +170,41 @@ $(document).ready(async function() {
 					log.info("Output Bitdepth Short: " + window.OutputBitDepthShort);
 				}
 
-				var encoded_by = "";
 				if (err.toString().indexOf("encoded_by") >= 0) {
-					var re = /.*encoded_by[ ]*:[ ]*(.*)[ \r\n]*\n/;
+					re = /.*encoded_by[ ]*:[ ]*(.*)[ \r\n]*\n/;
 					encoded_by = re.exec(err)[1]; // extracting file extension
 					log.info("Encoded By: " + encoded_by);
 				}
 
 				if (err.toString().indexOf(", 7.1") >= 0 || err.toString().indexOf(", 8 channels,") >= 0) {
 					// var occurenceIndex = err.toString().indexOf("channels");
-					// var channelCount = err.toString().substr(occurenceIndex - 2, 2);
-					var channelCount = 8;
+					// channelCount = err.toString().substr(occurenceIndex - 2, 2);
+					channelCount = 8;
 					log.info("Input Spatial Audio Channel Count: " + channelCount);
-					var re = /(?:\.([^.]+))?$/;
-					var ext = re.exec(filePath)[1]; // extracting file extension
+					re = /(?:\.([^.]+))?$/;
+					ext = re.exec(filePath)[1]; // extracting file extension
 					log.info("Input Spatial Audio Extension: " + ext)
 
 					//Check if ProTools .wav for reorder
 					if ((encoded_by == "Pro Tools") && (ext == "wav") && (channelCount == 8)) {
-						window.fromProTools = true; // indicates we should reorder!
+						window.fromProToolsNeedsChannelReOrdering = true; // indicates we should reorder!
 						log.info("Input Spatial Audio File was exported from Pro Tools, will use channel re-ordering...");
 					} else {
-						window.fromProTools = false;
+						window.fromProToolsNeedsChannelReOrdering = false;
 						log.info("Input Spatial Audio File not from Pro Tools or is .aif...")
 					}
-				} else if (err.toString().indexOf(" channels,") >= 0) {
-					// parse the number before the listed channels
-					var re = '(\d+) channels,';
-					var channelCount = re.exec(err)[1]; // extracting the number before found channels
+				} else if (err.toString().indexOf("hexadecagonal") >= 0 || err.toString().indexOf(" channels") >= 0) {
+					if (err.toString().indexOf("hexadecagonal") >= 0) {
+						channelCount = 16;
+					} else {
+						// parse the number before the listed channels
+						re = /(\d+) channels/gm;
+						channelCount = re.exec(err)[1]; // extracting the number before found channels
+					}
 					log.info("Channel Count: " + channelCount);
 
 					//Check if ProTools .wav for clipping out extra channels
-					if ((encoded_by == "Pro Tools") && (ext == "wav") && (channelCount > 8)) {
+					if ((encoded_by == "Pro Tools") && (channelCount > 8)) {
 						log.info("Input Spatial Audio File was exported from Pro Tools, will remove extra channels...");
 						
 						// TODO: Allow user selection of input format 
@@ -210,24 +214,25 @@ $(document).ready(async function() {
 							window.trim_to = "Mach1Spatial-8"; // assume Mach1Spatial-8
 						} else if (channelCount < 14) {
 							window.trim_to = "Mach1Spatial-12"; // assume Mach1Spatial-12
-						} else if (channelCount => 14) {
+						} else if (channelCount > 14) {
 							window.trim_to = "Mach1Spatial-14"; // assume Mach1Spatial-14
 						}
 
 						log.info("Input Mach1 Spatial Config: " + window.trim_to);
+						window.fromProToolsNeedsChannelReOrdering = false;
 
 					} else {
-						window.fromProTools = false;
-						log.info("Input Spatial Audio File not from Pro Tools...")
+						window.fromProToolsNeedsChannelReOrdering = false;
+						log.info("Input Spatial Audio File is from Pro Tools and marked for channel count trimming...")
 					}
 				} else {
 					log.info("Error: Input Spatial Audio channel count not found...");
 					log.info(err.toString())
-					window.fromProTools = false;
+					window.fromProToolsNeedsChannelReOrdering = false;
 				}
 			}
 		}
-		log.info("Input Spatial Audio from ProTools? " + window.fromProTools);
+		log.info("Input Spatial Audio from ProTools and needs channel re-ordering? " + window.fromProToolsNeedsChannelReOrdering);
 		HideMessage();
 		updateUIInputOptionsDependingOnSelectedFileTypes();
 	}
@@ -250,9 +255,9 @@ $(document).ready(async function() {
 		tempDir = "\"" + tempDir + "\"";
 
 		if (window.inputAudioFiles.length == 1) {
-			if (window.fromProTools) { // TODO: rename fromProTools to clarify its only for the 8ch re-ordering of 7.1 exports
+			if (window.fromProToolsNeedsChannelReOrdering) {
 				try {
-					exec(ffmpeg + ' -y -i "'+window.inputAudioFiles[0]+'" -map_channel 0.0.0 -c:a '+window.OutputBitDepthShort+'le '+tempDir+'000.wav -map_channel 0.0.1 -c:a '+window.OutputBitDepthShort+'le '+tempDir+'001.wav -map_channel 0.0.2 -c:a '+window.OutputBitDepthShort+'le '+tempDir+'002.wav -map_channel 0.0.3 -c:a '+window.OutputBitDepthShort+'le '+tempDir+'003.wav -map_channel 0.0.4 -c:a '+window.OutputBitDepthShort+'le '+tempDir+'004.wav -map_channel 0.0.5 -c:a '+window.OutputBitDepthShort+'le '+tempDir+'005.wav -map_channel 0.0.6 -c:a '+window.OutputBitDepthShort+'le '+tempDir+'006.wav -map_channel 0.0.7 -c:a '+window.OutputBitDepthShort+'le '+tempDir+'007.wav', function(error, stdout, stderr) {
+					exec("cd "+tempDir+" && "+ffmpeg+' -y -i "'+window.inputAudioFiles[0]+'" -map_channel 0.0.0 -c:a '+window.OutputBitDepthShort+'le 000.wav -map_channel 0.0.1 -c:a '+window.OutputBitDepthShort+'le 001.wav -map_channel 0.0.2 -c:a '+window.OutputBitDepthShort+'le 002.wav -map_channel 0.0.3 -c:a '+window.OutputBitDepthShort+'le 003.wav -map_channel 0.0.4 -c:a '+window.OutputBitDepthShort+'le 004.wav -map_channel 0.0.5 -c:a '+window.OutputBitDepthShort+'le 005.wav -map_channel 0.0.6 -c:a '+window.OutputBitDepthShort+'le 006.wav -map_channel 0.0.7 -c:a '+window.OutputBitDepthShort+'le 007.wav', function(error, stdout, stderr) {
 						log.info('stdout', stdout);
 						console.error('stderr', stderr);
 						if (error !== null) {
@@ -263,7 +268,7 @@ $(document).ready(async function() {
 					log.info("[fromProTools] Split 8ch 7.1 PT export into multi-mono");
 				}
 				try {
-					exec(ffmpeg + ' -y -i '+tempDir+'000.wav -i '+tempDir+'002.wav -i '+tempDir+'001.wav -i '+tempDir+'006.wav -i '+tempDir+'007.wav -i '+tempDir+'004.wav -i '+tempDir+'005.wav -i '+tempDir+'003.wav -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a]amerge=inputs=8[aout]" -map "[aout]" -metadata ICMT="mach1spatial-8" -c:a '+window.OutputBitDepthShort+'le '+tempDir+'inputspatialaudio.wav', function(error, stdout, stderr) {
+					exec("cd "+tempDir+" && "+ffmpeg+' -y -i 000.wav -i 002.wav -i 001.wav -i 006.wav -i 007.wav -i 004.wav -i 005.wav -i 003.wav -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a]amerge=inputs=8[aout]" -map "[aout]" -metadata ICMT="mach1spatial-8" -c:a '+window.OutputBitDepthShort+'le inputspatialaudio.wav', function(error, stdout, stderr) {
 						log.info('stdout', stdout);
 						console.error('stderr', stderr);
 						if (error !== null) {
@@ -277,7 +282,7 @@ $(document).ready(async function() {
 			if (window.trim_to != "") {
 				if (window.trim_to == "Mach1Spatial-8") {
 					try {
-						exec(ffmpeg + '-y -i "'+window.inputAudioFiles[0]+'" -c:a '+window.OutputBitDepthShort+'le -af pan=8c|c0=c0|c1=c1|c2=c2|c3=c3|c4=c4|c5=c5|c6=c6|c7=c7 '+tempDir+"inputspatialaudio.wav", function(error, stdout, stderr) {
+						exec("cd "+tempDir+" && "+ffmpeg+' -y -i "'+window.inputAudioFiles[0]+'" -c:a '+window.OutputBitDepthShort+'le -af "pan=8c|c0=c0|c1=c1|c2=c2|c3=c3|c4=c4|c5=c5|c6=c6|c7=c7" inputspatialaudio.wav', function(error, stdout, stderr) {
 							log.info('stdout', stdout);
 							console.error('stderr', stderr);
 							if (error !== null) {
@@ -290,7 +295,7 @@ $(document).ready(async function() {
 				}
 				else if (window.trim_to == "Mach1Spatial-12") {
 					try {
-						exec(ffmpeg + '-y -i "'+window.inputAudioFiles[0]+'" -c:a '+window.OutputBitDepthShort+'le -af pan=12c|c0=c0|c1=c1|c2=c2|c3=c3|c4=c4|c5=c5|c6=c6|c7=c7|c8=c8|c9=c9|c10=c10|c11=c11 '+tempDir+"inputspatialaudio.wav", function(error, stdout, stderr) {
+						exec("cd "+tempDir+" && "+ffmpeg+' -y -i "'+window.inputAudioFiles[0]+'" -c:a '+window.OutputBitDepthShort+'le -af "pan=12c|c0=c0|c1=c1|c2=c2|c3=c3|c4=c4|c5=c5|c6=c6|c7=c7|c8=c8|c9=c9|c10=c10|c11=c11" inputspatialaudio.wav', function(error, stdout, stderr) {
 							log.info('stdout', stdout);
 							console.error('stderr', stderr);
 							if (error !== null) {
@@ -303,7 +308,7 @@ $(document).ready(async function() {
 				}
 				else if (window.trim_to == "Mach1Spatial-14") {
 					try {
-						exec(ffmpeg + '-y -i "'+window.inputAudioFiles[0]+'" -c:a '+window.OutputBitDepthShort+'le -af pan=14c|c0=c0|c1=c1|c2=c2|c3=c3|c4=c4|c5=c5|c6=c6|c7=c7|c8=c8|c9=c9|c10=c10|c11=c11|c12=c12|c13=c13 '+tempDir+"inputspatialaudio.wav", function(error, stdout, stderr) {
+						exec("cd "+tempDir+" && "+ffmpeg+' -y -i "'+window.inputAudioFiles[0]+'" -c:a '+window.OutputBitDepthShort+'le -af "pan=14c|c0=c0|c1=c1|c2=c2|c3=c3|c4=c4|c5=c5|c6=c6|c7=c7|c8=c8|c9=c9|c10=c10|c11=c11|c12=c12|c13=c13" inputspatialaudio.wav', function(error, stdout, stderr) {
 							log.info('stdout', stdout);
 							console.error('stderr', stderr);
 							if (error !== null) {
@@ -695,7 +700,7 @@ $(document).ready(async function() {
 					});
 				log.info("..removed temp files successfully..");
 
-				window.fromProTools = false;
+				window.fromProToolsNeedsChannelReOrdering = false;
 				window.trim_to = "";
 				window.processedInputSpatialAudio = "";
 				log.info("..reset temp vars successfully..");
@@ -875,7 +880,7 @@ $(document).ready(async function() {
 					case "1":
 						if (selectedOutputFileType == 1) { // Audio only compressed aac
 							if (inputStaticStereoFilename == "") {
-								if (window.fromProTools == true) {
+								if (window.fromProToolsNeedsChannelReOrdering == true) {
 									processingRequest.push({
 										"process_kind": "8_channel_ProToolsWav_to_pcm",
 										"bitdepth": window.OutputBitDepthShort,
@@ -897,7 +902,7 @@ $(document).ready(async function() {
 								}
 							} else {
 								//TODO: AAC / VORBIS 10 CHANNEL
-								if (window.fromProTools == true) {
+								if (window.fromProToolsNeedsChannelReOrdering == true) {
 									processingRequest.push({
 										"process_kind": "8_channel_ProToolsWav_to_pcm",
 										"bitdepth": window.OutputBitDepthShort,
