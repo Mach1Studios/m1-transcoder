@@ -716,12 +716,6 @@ $(document).ready(async function() {
 			var inputAudioExt = inputAudioFilename.substring(inputAudioFilename.lastIndexOf('.')+1, inputAudioFilename.length) || inputAudioFilename;
 			log.info("Input Spatial Audio Path: ", inputAudioExt);
 
-			// TODO: take all input files and pre-process them via FFMPEG
-			// if fromProTools -> reorder
-			// if >8ch -> trim channels
-			// if neither the above -> make a temp copy for the recipes below
-			// TODO: remove all the `if (window.fromProTools == true)` sections below
-
 			var inputVideoFilename = $('#Video input[type="text"]').val();
 			var outputVideoFilename = $('#OutputVideo input[type="text"]').val();
 			var inputStaticStereoFilename = $('#StereoAudio input[type="text"]').val();
