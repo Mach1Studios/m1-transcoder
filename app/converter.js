@@ -624,7 +624,7 @@ $(document).ready(async function() {
 
 			window.inputAudioFiles[0] = $('#Audio input[type="text"]').val();
 			inputAudioFilename = window.inputAudioFiles[0];
-			var inputAudioExt = inputAudioFilename.substr(inputAudioFilename.length - 3);
+			var inputAudioExt = inputAudioFilename.substring(inputAudioFilename.lastIndexOf('.')+1, inputAudioFilename.length) || inputAudioFilename;
 			log.info("Input Spatial Audio Path: ", inputAudioExt);
 
 			var inputVideoFilename = $('#Video input[type="text"]').val();
