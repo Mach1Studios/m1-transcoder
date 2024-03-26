@@ -586,10 +586,12 @@ $(document).ready(async function() {
 
 		// run ffmpeg
 		function runTranscode() {
+			// TODO: move the clear steps into a new function
+
 			// removing temp files
 			const execSync = require('child_process').execSync;
 			try {
-				const dataPath = path.join(ipcRenderer.sendSync('get-app-data-path'), 'Mach1 Spatial System/');
+				const dataPath = path.join(ipcRenderer.sendSync('get-app-data-path'), 'Mach1/');
 
 				const scriptPath = ipcRenderer.sendSync('get-script-path') ;
 				var scriptPathClean = scriptPath.replace(/ /g, '\\ ');
