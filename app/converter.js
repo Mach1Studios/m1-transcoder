@@ -257,6 +257,7 @@ $(document).ready(async function() {
 
 		if (window.inputAudioFiles.length == 1) {
 			if (window.fromProToolsNeedsChannelReOrdering) {
+				// TODO: Make if statements based on channelCount
 				try {
 					exec("cd "+tempDir+" && "+ffmpeg+' -y -i "'+window.inputAudioFiles[0]+'" -map_channel 0.0.0 -c:a '+window.OutputBitDepthShort+'le 000.wav -map_channel 0.0.1 -c:a '+window.OutputBitDepthShort+'le 001.wav -map_channel 0.0.2 -c:a '+window.OutputBitDepthShort+'le 002.wav -map_channel 0.0.3 -c:a '+window.OutputBitDepthShort+'le 003.wav -map_channel 0.0.4 -c:a '+window.OutputBitDepthShort+'le 004.wav -map_channel 0.0.5 -c:a '+window.OutputBitDepthShort+'le 005.wav -map_channel 0.0.6 -c:a '+window.OutputBitDepthShort+'le 006.wav -map_channel 0.0.7 -c:a '+window.OutputBitDepthShort+'le 007.wav', function(error, stdout, stderr) {
 						log.info('stdout', stdout);
@@ -319,6 +320,19 @@ $(document).ready(async function() {
 					} catch (err) {
 						log.info("Trimmed number of channels to: " + window.trim_to);
 					}
+				}
+			} else {
+				// We didnt need to trim and the file wasnt from PT
+				try {
+					exec("cd "+tempDir+" && "+ffmpeg+' -y -i "'+window.inputAudioFiles[0]+'" -c:a '+window.OutputBitDepthShort+'le inputspatialaudio.wav', function(error, stdout, stderr) {
+						log.info('stdout', stdout);
+						console.error('stderr', stderr);
+						if (error !== null) {
+							log.error('exec error: ', error);
+						}
+					});
+				} catch (err) {
+					log.info("Trimmed number of channels to: " + window.trim_to);
 				}
 			}
 		}
