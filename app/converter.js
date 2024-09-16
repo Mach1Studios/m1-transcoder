@@ -97,19 +97,27 @@ $(document).ready(async function() {
 	document.getElementById('dragStereo').ondrop = (e) => {
 		e.preventDefault();
 		$('#dragAudio,#dragStereo,#dragJson,#dragVideo').hide();
+		if (e.dataTransfer.files.length > 0) {
+			// Update the input field with the first dropped file's path
+			$('#StereoAudio input[type="text"]').val(e.dataTransfer.files[0].path);
+		}
 		window.inputStereoFiles.length = 0;
 		var index = 0;
 		for (let f of e.dataTransfer.files) {
-			log.info("Input Spatial Audio File: ", f.path)
+			log.info("Input Stereo File: ", f.path)
 			window.inputStereoFiles[index] = f.path;
 			index++;
 		}
 		return false;
-	};
+	};	
 
 	document.getElementById('dragJson').ondrop = (e) => {
 		e.preventDefault();
 		$('#dragAudio,#dragStereo,#dragJson,#dragVideo').hide();
+		if (e.dataTransfer.files.length > 0) {
+			// Update the input field with the first dropped file's path
+			$('#JsonInput input[type="text"]').val(e.dataTransfer.files[0].path);
+		}
 		window.inputJsonFiles.length = 0;
 		var index = 0;
 		for (let f of e.dataTransfer.files) {
@@ -118,11 +126,15 @@ $(document).ready(async function() {
 			index++;
 		}
 		return false;
-	};
+	};	
 
 	document.getElementById('dragVideo').ondrop = (e) => {
 		e.preventDefault();
 		$('#dragAudio,#dragStereo,#dragJson,#dragVideo').hide();
+		if (e.dataTransfer.files.length > 0) {
+			// Update the input field with the first dropped file's path
+			$('#Video input[type="text"]').val(e.dataTransfer.files[0].path);
+		}
 		window.inputVideoFiles.length = 0;
 		var index = 0;
 		for (let f of e.dataTransfer.files) {
