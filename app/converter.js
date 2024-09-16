@@ -98,7 +98,6 @@ $(document).ready(async function() {
 		e.preventDefault();
 		$('#dragAudio,#dragStereo,#dragJson,#dragVideo').hide();
 		if (e.dataTransfer.files.length > 0) {
-			// Update the input field with the first dropped file's path
 			$('#StereoAudio input[type="text"]').val(e.dataTransfer.files[0].path);
 		}
 		window.inputStereoFiles.length = 0;
@@ -115,7 +114,6 @@ $(document).ready(async function() {
 		e.preventDefault();
 		$('#dragAudio,#dragStereo,#dragJson,#dragVideo').hide();
 		if (e.dataTransfer.files.length > 0) {
-			// Update the input field with the first dropped file's path
 			$('#JsonInput input[type="text"]').val(e.dataTransfer.files[0].path);
 		}
 		window.inputJsonFiles.length = 0;
@@ -132,7 +130,6 @@ $(document).ready(async function() {
 		e.preventDefault();
 		$('#dragAudio,#dragStereo,#dragJson,#dragVideo').hide();
 		if (e.dataTransfer.files.length > 0) {
-			// Update the input field with the first dropped file's path
 			$('#Video input[type="text"]').val(e.dataTransfer.files[0].path);
 		}
 		window.inputVideoFiles.length = 0;
