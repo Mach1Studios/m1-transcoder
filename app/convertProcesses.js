@@ -26,21 +26,17 @@ function unescapingPath(par) {
 	return (par.match(/"?(.*?)"?$/))[1];
 }
 
-function runExec(command) {
-    return new Promise((resolve, reject) => {
-        exec(command, { shell: true }, (error, stdout, stderr) => {
-            if (error) {
-                log.error(`Error executing command: ${error.message}`);
-                log.error(`stderr: ${stderr}`);
-                resolve(false);
-            } else {
-                log.info(`Command executed successfully.`);
-                log.info(`stdout: ${stdout}`);
-                resolve(true);
-            }
-        });
-    });
-}
+async function runExec(callString) {
+	try {
+	  const { stdout } = await exec(callString, { encoding: 'utf-8' });
+	  console.log('Command executed successfully:', stdout);
+	  return true;
+	} catch (error) {
+	  console.error('Failed!');
+	  console.error(error.message);
+	  return false;
+	}
+  }
 
 function runProcess(processData) {
 	const {
@@ -101,79 +97,101 @@ function runProcess(processData) {
 		//
 
 		/* input -> m4a */
-		// !NOT FUNCTIONAL
 		case "14_channel_pcm_to_m4a":
     		log.info(" executing " + processData["process_kind"]);
 
-   			var call = [
-				"cd ", tempDir,
+			var call = ["cd ", tempDir,
 				"&&",
 				ffmpeg, " -y -i ", processData["input_filename"],
-				' -map_channel 0.0.0 000.wav -map_channel 0.0.1 001.wav',
-				' -map_channel 0.0.2 002.wav -map_channel 0.0.3 003.wav',
-        		' -map_channel 0.0.4 004.wav -map_channel 0.0.5 005.wav',
-        		' -map_channel 0.0.6 006.wav -map_channel 0.0.7 007.wav',
-        		' -map_channel 0.0.8 008.wav -map_channel 0.0.9 009.wav',
-        		' -map_channel 0.0.10 010.wav -map_channel 0.0.11 011.wav',
-        		' -map_channel 0.0.12 012.wav -map_channel 0.0.13 013.wav',
-        		"&&",
-        		ffmpeg, ' -y -i 000.wav -i 001.wav -i 002.wav -i 003.wav',
-        		' -i 004.wav -i 005.wav -i 006.wav -i 007.wav',
-        		' -i 008.wav -i 009.wav -i 010.wav -i 011.wav',
-        		' -i 012.wav -i 013.wav',
-        		' -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a][8:a][9:a][10:a][11:a][12:a][13:a]amerge=inputs=14[a]"',
-        		' -map "[a]" MERGED.wav',
-        		"&&",
-        		ffmpeg, " -y -i MERGED.wav -metadata comment='mach1spatial-14'",
-        		" -c:a aac -b:a 1792k -q:a 10 ", processData["output_filename"]
-    		];
-   			var callString = call.join(' ');
+				" -map_channel 0.0.0 000.wav",
+				" -map_channel 0.0.1 001.wav",
+				" -map_channel 0.0.2 002.wav",
+				" -map_channel 0.0.3 003.wav",
+				" -map_channel 0.0.4 004.wav",
+				" -map_channel 0.0.5 005.wav",
+				" -map_channel 0.0.6 006.wav",
+				" -map_channel 0.0.7 007.wav",
+				" -map_channel 0.0.8 008.wav",
+				" -map_channel 0.0.9 009.wav",
+				" -map_channel 0.0.10 010.wav",
+				" -map_channel 0.0.11 011.wav",
+				" -map_channel 0.0.12 012.wav",
+				" -map_channel 0.0.13 013.wav",
+				"&&",
+				ffmpeg, " -y -i 006.wav -i 000.wav -i 001.wav -i 007.wav",
+				" -i 004.wav -i 005.wav -i 002.wav -i 003.wav -i 008.wav -i 009.wav -i 010.wav -i 011.wav -i 012.wav -i 013.wav",
+				" -filter_complex \"aevalsrc=0|0[anull];",
+				"[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a][8:a][9:a][10:a][11:a][12:a][13:a][anull]",
+				"amerge=inputs=15[aout]\"",
+				" -map [aout] -shortest MERGED.wav",
+				"&&",
+				ffmpeg, " -y -i MERGED.wav -metadata comment='mach1spatial-14'",
+				" -c:a aac -b:a 2048k", processData["output_filename"]
+			];
+			var callString = call.join(' ');
 
-    		return runExec(callString);
-    		break;
+			return runExec(callString);
+			break;
 			
-			// Also not functional 
-			case "12_channel_pcm_to_m4a":
-    log.info(" executing " + processData["process_kind"]);
+		case "12_channel_pcm_to_m4a":
+    		log.info(" executing " + processData["process_kind"]);
 
-    var call = ["cd ", tempDir,
-        "&&",
-        ffmpeg, " -y -i ", processData["input_filename"],
-        " -map_channel 0.0.0 000.wav",
-        " -map_channel 0.0.1 001.wav",
-        " -map_channel 0.0.2 002.wav",
-        " -map_channel 0.0.3 003.wav",
-        " -map_channel 0.0.4 004.wav",
-        " -map_channel 0.0.5 005.wav",
-        " -map_channel 0.0.6 006.wav",
-        " -map_channel 0.0.7 007.wav",
-        " -map_channel 0.0.8 008.wav",
-        " -map_channel 0.0.9 009.wav",
-        " -map_channel 0.0.10 010.wav",
-        " -map_channel 0.0.11 011.wav",
-        "&&",
-        ffmpeg, " -y -i 006.wav -i 000.wav -i 001.wav -i 007.wav",
-        " -i 004.wav -i 005.wav -i 002.wav -i 003.wav -i 008.wav -i 009.wav -i 010.wav -i 011.wav",
-        " -filter_complex \"aevalsrc=0|0|0|0[anull];",
-        "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a][8:a][9:a][10:a][11:a][anull]",
-        "amerge=inputs=13[aout]\"",
-        " -map [aout] -shortest MERGED.wav",
-        "&&",
-        ffmpeg, " -y -i MERGED.wav -metadata comment='mach1spatial-12'",
-        " -c:a aac -b:a 1024k -q:a 10 ", processData["output_filename"]
-    ];
-    var callString = call.join(' ');
+			var call = ["cd ", tempDir,
+				"&&",
+				ffmpeg, " -y -i ", processData["input_filename"],
+				" -map_channel 0.0.0 000.wav",
+				" -map_channel 0.0.1 001.wav",
+				" -map_channel 0.0.2 002.wav",
+				" -map_channel 0.0.3 003.wav",
+				" -map_channel 0.0.4 004.wav",
+				" -map_channel 0.0.5 005.wav",
+				" -map_channel 0.0.6 006.wav",
+				" -map_channel 0.0.7 007.wav",
+				" -map_channel 0.0.8 008.wav",
+				" -map_channel 0.0.9 009.wav",
+				" -map_channel 0.0.10 010.wav",
+				" -map_channel 0.0.11 011.wav",
+				"&&",
+				ffmpeg, " -y -i 006.wav -i 000.wav -i 001.wav -i 007.wav",
+				" -i 004.wav -i 005.wav -i 002.wav -i 003.wav -i 008.wav -i 009.wav -i 010.wav -i 011.wav",
+				" -filter_complex \"aevalsrc=0|0|0|0[anull];",
+				"[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a][8:a][9:a][10:a][11:a][anull]",
+				"amerge=inputs=13[aout]\"",
+				" -map [aout] -shortest MERGED.wav",
+				"&&",
+				ffmpeg, " -y -i MERGED.wav -metadata comment='mach1spatial-12'",
+				" -c:a aac -b:a 2048k", processData["output_filename"]
+			];
+			var callString = call.join(' ');
 
-    return runExec(callString);
-    break;
-
+			return runExec(callString);
+			break;
 
 		case "9_channel_pcm_to_m4a":
 			log.info(" executing " + processData["process_kind"]);
 
 			var call = ["cd ", tempDir,
 				"&&",
-				ffmpeg, " -y -i ", processData["input_filename"], " -c:a aac -b:a 576k -q:a 10 ", processData["output_filename"]
+				ffmpeg, " -y -i ", processData["input_filename"],
+				" -map_channel 0.0.0 000.wav",
+				" -map_channel 0.0.1 001.wav",
+				" -map_channel 0.0.2 002.wav",
+				" -map_channel 0.0.3 003.wav",
+				" -map_channel 0.0.4 004.wav",
+				" -map_channel 0.0.5 005.wav",
+				" -map_channel 0.0.6 006.wav",
+				" -map_channel 0.0.7 007.wav",
+				" -map_channel 0.0.8 008.wav",
+				"&&",
+				ffmpeg, " -y -i 006.wav -i 000.wav -i 001.wav -i 007.wav",
+				" -i 004.wav -i 005.wav -i 002.wav -i 003.wav -i 008.wav",
+				" -filter_complex \"aevalsrc=0|0|0|0|0|0|0[anull];",
+				"[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a][8:a][anull]",
+				"amerge=inputs=10[aout]\"",
+				" -map [aout] -shortest MERGED.wav",
+				"&&",
+				ffmpeg, " -y -i MERGED.wav -metadata comment='mach1spatial-12'",
+				" -c:a aac -b:a 2048k", processData["output_filename"]
 			];
 			var callString = call.join(' ');
 
@@ -189,7 +207,7 @@ function runProcess(processData) {
 				"&&",
 				ffmpeg, ' -y -i 006.wav -i 000.wav -i 001.wav -i 007.wav -i 004.wav -i 005.wav -i 002.wav -i 003.wav -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a]amerge=inputs=8[aout]" -map [aout] MERGED.wav',
 				"&&",
-				ffmpeg, " -y -i MERGED.wav -metadata comment='mach1spatial-8' -c:a aac -b:a 1024k -q:a 10 ", processData["output_filename"]
+				ffmpeg, " -y -i MERGED.wav -metadata comment='mach1spatial-8' -c:a aac -b:a 1024k", processData["output_filename"]
 			];
 			var callString = call.join(' ');
 
@@ -205,7 +223,7 @@ function runProcess(processData) {
 				"&&",
 				ffmpeg, ' -y -i 000.wav -i 001.wav -i 002.wav -i 003.wav -i 004.wav -i 005.wav -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a]amerge=inputs=6[aout]" -map "[aout]" MERGED.wav',
 				"&&",
-				ffmpeg, " -y -i MERGED.wav -c:a aac -b:a 384k -q:a 10 ", processData["output_filename"]
+				ffmpeg, " -y -i MERGED.wav -c:a aac -b:a 384k", processData["output_filename"]
 			];
 			var callString = call.join(' ');
 
@@ -222,7 +240,7 @@ function runProcess(processData) {
 				ffmpeg, ' -y -i 000.wav -i 001.wav -i 002.wav -i 003.wav -filter_complex "[0:a][1:a][2:a][3:a]amerge=inputs=4[aout]" -map "[aout]" MERGED.wav',
 				"&&",
 				//TODO: figure out if -channel_layout quad is needed??!
-				ffmpeg, " -y -i MERGED.wav -metadata comment='mach1horizon-4' -c:a aac -b:a 256k -q:a 10 ", processData["output_filename"]
+				ffmpeg, " -y -i MERGED.wav -metadata comment='mach1horizon-4' -c:a aac -b:a 512k", processData["output_filename"]
 			];
 			var callString = call.join(' ');
 

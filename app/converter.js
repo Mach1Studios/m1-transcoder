@@ -152,7 +152,7 @@ $(document).ready(async function() {
 			return channelCount;
 		} catch (error) {
 			console.error(`Error getting channel count: ${error.stderr}`);
-			throw error; // Throw the error to be caught by the calling code
+			throw error;
 		}
 	}
 	
@@ -1026,12 +1026,8 @@ $(document).ready(async function() {
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 1
-
 								try {
-									const inputAudioFile = window.inputAudioFiles[0]; // Use the first file in the array
-									log.info("Input fileYOURSMATT: " + window.inputAudioFiles[0]);
-						
-									// Get the channel count synchronously
+									const inputAudioFile = window.inputAudioFiles[0];
 									const channelCount = getChannelCount(inputAudioFile);
 						
 									processingRequest.push({
@@ -1041,28 +1037,24 @@ $(document).ready(async function() {
 									});
 						
 									if (channelCount === 4) {
-										log.info("4 CHANNEL DETECTED");
 										processingRequest.push({
 											"process_kind": "4_channel_pcm_to_m4a",
 											"input_filename": inputAudioFile,
 											"output_filename": "MERGED.m4a"
 										});
 									} else if (channelCount === 8) {
-										log.info("8 CHANNEL DETECTED");
 										processingRequest.push({
 											"process_kind": "8_channel_pcm_to_m4a",
 											"input_filename": inputAudioFile,
 											"output_filename": "MERGED.m4a"
 										});
 									} else if (channelCount === 12) {
-										log.info("12 CHANNEL DETECTED");
 										processingRequest.push({
 											"process_kind": "12_channel_pcm_to_m4a",
 											"input_filename": inputAudioFile,
 											"output_filename": "MERGED.m4a"
 										});
 									} else if (channelCount === 14) {
-										log.info("14 CHANNEL DETECTED");
 										processingRequest.push({
 											"process_kind": "14_channel_pcm_to_m4a",
 											"input_filename": inputAudioFile,
@@ -1070,7 +1062,6 @@ $(document).ready(async function() {
 										});
 									} else {
 										console.error(`Unsupported number of channels: ${channelCount}`);
-										// Handle unsupported channel counts if necessary
 										return;
 									}
 						
