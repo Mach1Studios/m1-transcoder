@@ -142,6 +142,21 @@ $(document).ready(async function() {
 		return false;
 	};
 
+	function getChannelCount(audioFilePath) {
+		const { execSync } = require('child_process');
+		const ffprobeCommand = `ffprobe -v error -select_streams a:0 -show_entries stream=channels -of default=noprint_wrappers=1:nokey=1 "${audioFilePath}"`;
+	
+		try {
+			const stdout = execSync(ffprobeCommand, { encoding: 'utf8' });
+			const channelCount = parseInt(stdout.trim(), 10);
+			return channelCount;
+		} catch (error) {
+			console.error(`Error getting channel count: ${error.stderr}`);
+			throw error;
+		}
+	}
+	
+
 	function checkSpatialAudioInput() {
 		const exec = require('child_process').execSync;
 		const scriptPath = ipcRenderer.sendSync('get-script-path');
@@ -1011,22 +1026,56 @@ $(document).ready(async function() {
 						if (selectedOutputFileType == 3) { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 1
-								processingRequest.push({
-									"process_kind": "ffmpeg-mute",
-									"input_video": inputVideoFilename,
-									"output_video": "muted-video." + window.inputVideoExt
-								});
-								processingRequest.push({
-									"process_kind": "8_channel_pcm_to_m4a",
-									"input_filename": "inputspatialaudio.wav",
-									"output_filename": "MERGED.m4a"
-								});
-								processingRequest.push({
-									"process_kind": "attach_audio_to_video_hard",
-									"input_audio": "MERGED.m4a",
-									"input_video": "muted-video." + window.inputVideoExt,
-									"output_video": outputVideoFilename
-								});
+								try {
+									const inputAudioFile = window.inputAudioFiles[0];
+									const channelCount = getChannelCount(inputAudioFile);
+						
+									processingRequest.push({
+										"process_kind": "ffmpeg-mute",
+										"input_video": inputVideoFilename,
+										"output_video": "muted-video." + window.inputVideoExt
+									});
+						
+									if (channelCount === 4) {
+										processingRequest.push({
+											"process_kind": "4_channel_pcm_to_m4a",
+											"input_filename": inputAudioFile,
+											"output_filename": "MERGED.m4a"
+										});
+									} else if (channelCount === 8) {
+										processingRequest.push({
+											"process_kind": "8_channel_pcm_to_m4a",
+											"input_filename": inputAudioFile,
+											"output_filename": "MERGED.m4a"
+										});
+									} else if (channelCount === 12) {
+										processingRequest.push({
+											"process_kind": "12_channel_pcm_to_m4a",
+											"input_filename": inputAudioFile,
+											"output_filename": "MERGED.m4a"
+										});
+									} else if (channelCount === 14) {
+										processingRequest.push({
+											"process_kind": "14_channel_pcm_to_m4a",
+											"input_filename": inputAudioFile,
+											"output_filename": "MERGED.m4a"
+										});
+									} else {
+										console.error(`Unsupported number of channels: ${channelCount}`);
+										return;
+									}
+						
+									processingRequest.push({
+										"process_kind": "attach_audio_to_video_hard",
+										"input_audio": "MERGED.m4a",
+										"input_video": "muted-video." + window.inputVideoExt,
+										"output_video": outputVideoFilename
+									});
+								} catch (error) {
+									console.error("Failed to get channel count:", error);
+									// Handle the error as needed
+									return;
+								}
 							} else {
 								// Optional stereo, case 2
 								processingRequest.push({
