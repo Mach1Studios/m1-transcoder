@@ -789,24 +789,85 @@ $(document).ready(async function() {
 				return false;
 			}
 
+			// Output Type Constants
+			const OutputTypes = {
+				M1SPATIAL: '1',
+				M1HORIZON: '2',
+				M1HORIZON_PAIRS_SINGLE: '3',
+				M1HORIZON_PAIRS_MULTI: '4',
+				ACNSN3D: '5',
+				FOAFUMA: '6',
+				SOAACNSN3D: '7',
+				SOAFUMA: '8',
+				SURROUND51CINEMA: '9',
+				SURROUND51SMPTE: '10',
+				SURROUND51DTS: '11',
+				SURROUND50: '23',
+				SURROUND71: '12',
+				SURROUND70: '24',
+				FB360TBE: '13',
+				ACNSN3D3OA: '14',
+				FUMA30A: '15',
+				SURROUND512: '16',
+				SURROUND502: '21',
+				SURROUND514: '17',
+				SURROUND504: '22',
+				SURROUND71SDDS: '18',
+				SURROUND712: '19',
+				SURROUND714: '20',
+				MACH1SDKUNITYUNREAL: '25',
+				M1SPATIALSAMSUNGVR: '26',
+				APPLESPATIAL51SIDE: '27',
+				ADM712: '28',
+				CUSTOMFORMAT: '99'
+			};
+
+			// Output File Types for selectedOutputFileType
+			const OutputFileTypes = {
+				'1': 'M4A',
+				'2': 'WAV',
+				'3': 'MP4',
+				'4': 'MOV',
+				'5': 'MP4',
+				'6': 'MP4',
+				'7': 'MP4',
+				'8': 'MOV',
+				'9': 'MOV',
+				'10': 'MOV',
+				'11': 'OGG',
+				'12': 'AIF',
+				'13': 'OPUS',
+				'14': 'MP4',
+			};
+
+			// Extension mapping
+			const PreferredExtensions = {
+				'MP4': 'mp4',
+				'MOV': 'mov',
+				'M4A': 'm4a',
+				'WAV': 'wav',
+				'OGG': 'ogg',
+				'AIF': 'aif',
+				'OPUS': 'opus',
+			};
+
+			var outputFileTypeKey = OutputFileTypes[selectedOutputFileType];
+
+			if (!outputFileTypeKey) {
+				console.error(`Unknown output file type: ${selectedOutputFileType}`);
+				return false;
+			}
+
+			var preferredExtension = PreferredExtensions[outputFileTypeKey];
+
+			if (!preferredExtension) {
+				console.error(`No preferred extension for output type: ${outputFileTypeKey}`);
+				return false;
+			}
+
 			var re = /(?:\.([^.]+))?$/;
 
 			var ext = re.exec(outputVideoFilename)[1]; // extracting file extension
-			var preferredExtension;
-			if (selectedOutputFileType == 1) preferredExtension = "m4a";
-			if (selectedOutputFileType == 2) preferredExtension = "wav";
-			if (selectedOutputFileType == 3) preferredExtension = "mp4";
-			if (selectedOutputFileType == 4) preferredExtension = "mov";
-			if (selectedOutputFileType == 5) preferredExtension = "mp4";
-			if (selectedOutputFileType == 6) preferredExtension = "mp4";
-			if (selectedOutputFileType == 7) preferredExtension = "mp4";
-			if (selectedOutputFileType == 8) preferredExtension = "mov";
-			if (selectedOutputFileType == 9) preferredExtension = "mov";
-			if (selectedOutputFileType == 10) preferredExtension = "mov";
-			if (selectedOutputFileType == 11) preferredExtension = "ogg";
-			if (selectedOutputFileType == 12) preferredExtension = "aif";
-			if (selectedOutputFileType == 13) preferredExtension = "opus";
-			if (selectedOutputFileType == 14) preferredExtension = "mp4";
 
 			if (ext != undefined) {
 				log.info("found extension " + ext + " ... replacing it with " + preferredExtension);
@@ -826,14 +887,14 @@ $(document).ready(async function() {
 				// Input is 4 pairs 4 files
 				switch (selectedOutputType) {
 					//M1HorizonPairs (single)
-					case "3":
-						if (selectedOutputFileType == 1) { // Audio only compressed
+					case OutputTypes.M1HORIZON_PAIRS_SINGLE:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed
 							//compress to aac
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							//Make fun of user for asking to output the same thing as the input
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 							processingRequest.push({
 								"process_kind": "ffmpeg-mute",
 								"input_video": inputVideoFilename,
@@ -856,7 +917,7 @@ $(document).ready(async function() {
 								"output_video": outputVideoFilename
 							});
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 							processingRequest.push({
 								"process_kind": "ffmpeg-mute",
 								"input_video": inputVideoFilename,
@@ -877,14 +938,14 @@ $(document).ready(async function() {
 						break;
 
 						//M1HorizonPairs (multi) 
-					case "4":
-						if (selectedOutputFileType == 1) { // Audio only compressed
+					case OutputTypes.M1HORIZON_PAIRS_MULTI:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed
 							//compress to aac
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							//Make fun of user for asking to output the same thing as the input
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 							processingRequest.push({
 								"process_kind": "ffmpeg-mute",
 								"input_video": inputVideoFilename,
@@ -897,7 +958,7 @@ $(document).ready(async function() {
 								"output_video": outputVideoFilename
 							});
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 							processingRequest.push({
 								"process_kind": "ffmpeg-mute",
 								"input_video": inputVideoFilename,
@@ -916,8 +977,8 @@ $(document).ready(async function() {
 				log.info("Input is M1Spatial encoded")
 				switch (selectedOutputType) {
 					//M1SPATIAL 
-					case "1":
-						if (selectedOutputFileType == 1) { // Audio only compressed aac
+					case OutputTypes.M1SPATIAL:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed aac
 							if (inputStaticStereoFilename == "") {
 								if (window.fromProToolsNeedsChannelReOrdering == true) {
 									processingRequest.push({
@@ -965,7 +1026,7 @@ $(document).ready(async function() {
 								}
 							}
 						}
-						if (selectedOutputFileType == 11) { // Audio only compressed ogg
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed ogg
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 1
 								processingRequest.push({
@@ -984,7 +1045,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 13) { // Audio only compressed opus
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed opus
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 1
 								processingRequest.push({
@@ -1003,7 +1064,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 1
 								processingRequest.push({
@@ -1023,7 +1084,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 1
 								try {
@@ -1097,7 +1158,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 1
 								processingRequest.push({
@@ -1143,8 +1204,8 @@ $(document).ready(async function() {
 
 						//M1HORIZON
 						//TODO: +ST
-					case "2":
-						if (selectedOutputFileType == 1) { // Audio only compressed aac
+					case OutputTypes.M1HORIZON:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed aac
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -1194,7 +1255,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 11) { // Audio only compressed ogg
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed ogg
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -1244,7 +1305,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -1290,7 +1351,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -1362,7 +1423,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -1434,8 +1495,8 @@ $(document).ready(async function() {
 
 						//M1HORIZON PAIRS (SINGLESTREAM) 
 						//TODO: +ST
-					case "3":
-						if (selectedOutputFileType == 1) { // Audio only compressed aac
+					case OutputTypes.M1HORIZON_PAIRS_SINGLE:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed aac
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 5
 								processingRequest.push({
@@ -1483,7 +1544,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 11) { // Audio only compressed ogg
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed ogg
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 5
 								processingRequest.push({
@@ -1531,7 +1592,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 5
 								processingRequest.push({
@@ -1569,7 +1630,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 5
 								processingRequest.push({
@@ -1639,7 +1700,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 5
 								processingRequest.push({
@@ -1708,12 +1769,12 @@ $(document).ready(async function() {
 						break;
 
 						//M1HORIZON PAIRS (MULTISTREAM)
-					case "4":
-						if (selectedOutputFileType == 1) { // Audio only compressed
+					case OutputTypes.M1HORIZON_PAIRS_MULTI:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
 								processingRequest.push({
 									"process_kind": "ffmpeg-mute",
@@ -1772,7 +1833,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
 								processingRequest.push({
 									"process_kind": "ffmpeg-mute",
@@ -1833,8 +1894,8 @@ $(document).ready(async function() {
 						break;
 
 						//FOA: ACNSN3D
-					case "5":
-						if (selectedOutputFileType == 1) { // Audio only compressed aac
+					case OutputTypes.ACNSN3D:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed aac
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -1898,7 +1959,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 11) { // Audio only compressed ogg
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed ogg
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -1962,7 +2023,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -2003,7 +2064,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -2081,7 +2142,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed 
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed 
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -2161,7 +2222,7 @@ $(document).ready(async function() {
 							}
 						}
 						//TODO: look into why I need to reorder ACNSN3D to work!?!?!?!?
-						if (selectedOutputFileType == 5) { // Audio & Video compressed MONOSCOPIC
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed MONOSCOPIC
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -2252,7 +2313,7 @@ $(document).ready(async function() {
 							}
 						}
 						//TODO: look into why I need to reorder ACNSN3D to work!?!?!?!?
-						if (selectedOutputFileType == 6) { // Audio & Video compressed TOP/BOTTOM STEREOSCOPIC 
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed TOP/BOTTOM STEREOSCOPIC 
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 9
 								processingRequest.push({
@@ -2343,7 +2404,7 @@ $(document).ready(async function() {
 							}
 						}
 						//TODO: look into why I need to reorder ACNSN3D to work!?!?!?!?
-						if (selectedOutputFileType == 7) { // Audio & Video compressed LEFT/RIGHT STEREOSCOPIC 
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed LEFT/RIGHT STEREOSCOPIC 
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -2434,7 +2495,7 @@ $(document).ready(async function() {
 							}
 						}
 						//TODO: look into why I need to reorder ACNSN3D to work!?!?!?!?
-						if (selectedOutputFileType == 8) { // Audio & Video uncompressed MONOSCOPIC
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed MONOSCOPIC
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -2523,7 +2584,7 @@ $(document).ready(async function() {
 							}
 						}
 						//TODO: look into why I need to reorder ACNSN3D to work!?!?!?!?
-						if (selectedOutputFileType == 9) { // Audio & Video uncompressed TOP/BOTTOM STEREOSCOPIC 
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed TOP/BOTTOM STEREOSCOPIC 
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -2612,7 +2673,7 @@ $(document).ready(async function() {
 							}
 						}
 						//TODO: look into why I need to reorder ACNSN3D to work!?!?!?!?
-						if (selectedOutputFileType == 10) { // Audio & Video uncompressed LEFT/RIGHT STEREOSCOPIC 
+						if (outputFileTypeKey === 'M4A') { // Audio & Video uncompressed LEFT/RIGHT STEREOSCOPIC 
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 9
 								processingRequest.push({
@@ -2703,8 +2764,8 @@ $(document).ready(async function() {
 						break;
 
 						//FOA: FuMa 
-					case "6":
-						if (selectedOutputFileType == 1) { // Audio only compressed aac
+					case OutputTypes.FOAFUMA:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed aac
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -2768,7 +2829,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 11) { // Audio only compressed ogg
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed ogg
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -2832,7 +2893,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -2892,7 +2953,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -2978,7 +3039,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -3047,8 +3108,8 @@ $(document).ready(async function() {
 						break;
 
 						//SOA: ACNSN3D
-					case "7":
-						if (selectedOutputFileType == 1) { // Audio only compressed aac
+					case OutputTypes.SOAACNSN3D:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed aac
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -3078,7 +3139,7 @@ $(document).ready(async function() {
 								// REMOVE UNTIL VERIFY SUPPORT IN PLAYBACK
 							}
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -3108,7 +3169,7 @@ $(document).ready(async function() {
 								// REMOVE UNTIL VERIFY SUPPORT IN PLAYBACK
 							}
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -3149,7 +3210,7 @@ $(document).ready(async function() {
 								// REMOVE UNTIL VERIFY SUPPORT IN PLAYBACK
 							}
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -3193,10 +3254,10 @@ $(document).ready(async function() {
 						break;
 
 						//SOA: FuMa 
-					case "8":
-						if (selectedOutputFileType == 1) { // Audio only compressed
+					case OutputTypes.SOAFUMA:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 15
 								processingRequest.push({
@@ -3226,7 +3287,7 @@ $(document).ready(async function() {
 								// REMOVE UNTIL VERIFY SUPPORT IN PLAYBACK
 							}
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 15
 								processingRequest.push({
@@ -3267,7 +3328,7 @@ $(document).ready(async function() {
 								// REMOVE UNTIL VERIFY SUPPORT IN PLAYBACK
 							}
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 15
 								processingRequest.push({
@@ -3311,8 +3372,8 @@ $(document).ready(async function() {
 						break;
 
 						//Surround: 5.1 L,C,R,Ls,Rs,LFE Cinema
-					case "9":
-						if (selectedOutputFileType == 1) { // Audio only compressed aac
+					case OutputTypes.SURROUND51CINEMA:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed aac
 							if (inputStaticStereoFilename == "") {
 								processingRequest.push({
 									"process_kind": "8_channel_pcm_to_wav",
@@ -3358,7 +3419,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 11) { // Audio only compressed ogg
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed ogg
 							if (inputStaticStereoFilename == "") {
 								processingRequest.push({
 									"process_kind": "8_channel_pcm_to_wav",
@@ -3404,7 +3465,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								processingRequest.push({
 									"process_kind": "8_channel_pcm_to_wav",
@@ -3440,7 +3501,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 15
 								processingRequest.push({
@@ -3500,7 +3561,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 15
 								processingRequest.push({
@@ -3563,8 +3624,8 @@ $(document).ready(async function() {
 						break;
 
 						//Surround: 5.1 L,R,C,LFE,Ls,Rs
-					case "10":
-						if (selectedOutputFileType == 1) { // Audio only compressed aac
+					case OutputTypes.SURROUND51SMPTE:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed aac
 							if (inputStaticStereoFilename == "") {
 								processingRequest.push({
 									"process_kind": "8_channel_pcm_to_wav",
@@ -3610,7 +3671,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 11) { // Audio only compressed ogg
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed ogg
 							if (inputStaticStereoFilename == "") {
 								processingRequest.push({
 									"process_kind": "8_channel_pcm_to_wav",
@@ -3656,7 +3717,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								processingRequest.push({
 									"process_kind": "8_channel_pcm_to_wav",
@@ -3692,7 +3753,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 15
 								processingRequest.push({
@@ -3752,7 +3813,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 4) { // Audio & video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & video uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 15
 								processingRequest.push({
@@ -3815,8 +3876,8 @@ $(document).ready(async function() {
 						break;
 
 						//Surround: 5.1 L, R, Ls, Rs, C, LFE
-					case "11":
-						if (selectedOutputFileType == 1) { // Audio only compressed aac
+					case OutputTypes.SURROUND51DTS:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed aac
 							if (inputStaticStereoFilename == "") {
 								processingRequest.push({
 									"process_kind": "8_channel_pcm_to_wav",
@@ -3862,7 +3923,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 11) { // Audio only compressed ogg
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed ogg
 							if (inputStaticStereoFilename == "") {
 								processingRequest.push({
 									"process_kind": "8_channel_pcm_to_wav",
@@ -3908,7 +3969,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								processingRequest.push({
 									"process_kind": "8_channel_pcm_to_wav",
@@ -3944,7 +4005,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -4004,7 +4065,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -4067,10 +4128,10 @@ $(document).ready(async function() {
 						break;
 
 						//Surround: 5.0 L,C,R,Ls,Rs
-					case "23":
-						if (selectedOutputFileType == 1) { // Audio only compressed
+					case OutputTypes.SURROUND50:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								processingRequest.push({
 									"process_kind": "8_channel_pcm_to_wav",
@@ -4106,15 +4167,15 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 						}
 						break;
 
 						//Surround: 7.1 L, C, R, Lss, Rss, Lsr, Rsr, LFE
-					case "12":
-						if (selectedOutputFileType == 1) { // Audio only compressed aac
+					case OutputTypes.SURROUND71:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed aac
 							if (inputStaticStereoFilename == "") {
 								processingRequest.push({
 									"process_kind": "8_channel_pcm_to_wav",
@@ -4160,7 +4221,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 11) { // Audio only compressed ogg
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed ogg
 							if (inputStaticStereoFilename == "") {
 								processingRequest.push({
 									"process_kind": "8_channel_pcm_to_wav",
@@ -4206,7 +4267,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								processingRequest.push({
 									"process_kind": "8_channel_pcm_to_wav",
@@ -4242,7 +4303,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 15
 								processingRequest.push({
@@ -4312,7 +4373,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 15
 								processingRequest.push({
@@ -4385,10 +4446,10 @@ $(document).ready(async function() {
 						break;
 
 						//Surround: 7.0 L, C, R, Lss, Rss, Lsr, Rsr
-					case "24":
-						if (selectedOutputFileType == 1) { // Audio only compressed
+					case OutputTypes.SURROUND70:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								processingRequest.push({
 									"process_kind": "8_channel_pcm_to_wav",
@@ -4424,17 +4485,17 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 						}
 						break;
 
 						//TBE/FB360 
-					case "13":
-						if (selectedOutputFileType == 1) { // Audio only compressed
+					case OutputTypes.FB360TBE:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 15
 								processingRequest.push({
@@ -4472,18 +4533,18 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 						}
 						break;
 
 						//ACNSN3D 3oa
-					case "14":
-						if (selectedOutputFileType == 1) { // Audio only compressed
+					case OutputTypes.ACNSN3D3OA:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed
 							//TODO: Requires 16channel aac
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 15
 								processingRequest.push({
@@ -4500,7 +4561,7 @@ $(document).ready(async function() {
 								// REMOVE UNTIL VERIFY SUPPORT IN PLAYBACK
 							}
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 15
 								processingRequest.push({
@@ -4534,7 +4595,7 @@ $(document).ready(async function() {
 								// REMOVE UNTIL VERIFY SUPPORT IN PLAYBACK
 							}
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 15
 								processingRequest.push({
@@ -4571,11 +4632,11 @@ $(document).ready(async function() {
 						break;
 
 						//FuMa 3oa
-					case "15":
-						if (selectedOutputFileType == 1) { // Audio only compressed
+					case OutputTypes.FUMA3OA:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed
 							//TODO: Requires 16channel aac
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 15
 								processingRequest.push({
@@ -4598,7 +4659,7 @@ $(document).ready(async function() {
 								// REMOVE UNTIL VERIFY SUPPORT IN PLAYBACK
 							}
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 15
 								processingRequest.push({
@@ -4632,7 +4693,7 @@ $(document).ready(async function() {
 								// REMOVE UNTIL VERIFY SUPPORT IN PLAYBACK
 							}
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 15
 								processingRequest.push({
@@ -4669,10 +4730,10 @@ $(document).ready(async function() {
 						break;
 
 						//Surround: 5.1.2 Surround (L,C,R,Ls,Rs,LFE,Lts,Rts)
-					case "16":
-						if (selectedOutputFileType == 1) { // Audio only compressed
+					case OutputTypes.SURROUND512:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								processingRequest.push({
 									"process_kind": "8_channel_pcm_to_wav",
@@ -4708,17 +4769,17 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 						}
 						break;
 
 						//Surround: 5.0.2 Surround (L,C,R,Ls,Rs,LFE,Lts,Rts)
-					case "21":
-						if (selectedOutputFileType == 1) { // Audio only compressed
+					case OutputTypes.SURROUND502:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								processingRequest.push({
 									"process_kind": "8_channel_pcm_to_wav",
@@ -4754,17 +4815,17 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 						}
 						break;
 
 						//Surround: 5.1.4 Surround (L,C,R,Ls,Rs,LFE,FLts,FRts,BLts,BRts)
-					case "17":
-						if (selectedOutputFileType == 1) { // Audio only compressed
+					case OutputTypes.SURROUND514:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								processingRequest.push({
 									"process_kind": "8_channel_pcm_to_wav",
@@ -4800,17 +4861,17 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 						}
 						break;
 
 						//Surround: 5.0.4 Surround (L,C,R,Ls,Rs,LFE,FLts,FRts,BLts,BRts)
-					case "22":
-						if (selectedOutputFileType == 1) { // Audio only compressed
+					case OutputTypes.SURROUND504:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								processingRequest.push({
 									"process_kind": "8_channel_pcm_to_wav",
@@ -4846,17 +4907,17 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 						}
 						break;
 
 						//Surround: 7.1 Surround SDDS (L,C,R,Ls,Rs,LFE,Lts,Rts)
-					case "18":
-						if (selectedOutputFileType == 1) { // Audio only compressed
+					case OutputTypes.SURROUND71SDDS:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								processingRequest.push({
 									"process_kind": "8_channel_pcm_to_wav",
@@ -4892,17 +4953,17 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 						}
 						break;
 
 						//Surround: 7.1.2 Surround (L,C,R,Lss,Rss,Lsr,Rsr,LFE,Lts,Rts)
-					case "19":
-						if (selectedOutputFileType == 1) { // Audio only compressed
+					case OutputTypes.SURROUND712:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								processingRequest.push({
 									"process_kind": "8_channel_pcm_to_wav",
@@ -4938,17 +4999,17 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 						}
 						break;
 
 						//Surround: 7.1.4 Surround L,C,R,Lss,Rss,Lsr,Rsr,LFE,FLts,FRts,BLts,BRts)
-					case "20":
-						if (selectedOutputFileType == 1) { // Audio only compressed
+					case OutputTypes.SURROUND714:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								processingRequest.push({
 									"process_kind": "8_channel_pcm_to_wav",
@@ -4984,15 +5045,15 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 						}
 						break;
 
 						//Mach1 SDK: Unity & Unreal Engine
-					case "25":
-						if (selectedOutputFileType == 1) { // Audio only compressed aac
+					case OutputTypes.MACH1SDKUNITYUNREAL:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed aac
 							processingRequest.push({
 								"process_kind": "8_channel_pcm_to_wav",
 								"bitdepth": window.OutputBitDepthShort,
@@ -5006,7 +5067,7 @@ $(document).ready(async function() {
 								"output_dir": videoOutputPath
 							});
 						}
-						if (selectedOutputFileType == 11) { // Audio only compressed ogg
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed ogg
 							processingRequest.push({
 								"process_kind": "8_channel_pcm_to_wav",
 								"bitdepth": window.OutputBitDepthShort,
@@ -5020,7 +5081,7 @@ $(document).ready(async function() {
 								"output_dir": videoOutputPath
 							});
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							processingRequest.push({
 								"process_kind": "8_channel_pcm_to_wav",
 								"bitdepth": window.OutputBitDepthShort,
@@ -5034,19 +5095,19 @@ $(document).ready(async function() {
 								"output_dir": videoOutputPath
 							});
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 						}
 						break;
 
 						//M1SPATIAL multistream for SamsungVR
-					case "26":
-						if (selectedOutputFileType == 1) { // Audio only compressed
+					case OutputTypes.M1SPATIALSAMSUNGVR:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -5076,7 +5137,7 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo
 								processingRequest.push({
@@ -5108,12 +5169,12 @@ $(document).ready(async function() {
 						}
 						break;
 						//M1SPATIAL to 5.1(side) for Apple Spatial (video)
-					case "27":
-						if (selectedOutputFileType == 1) { // Audio only compressed
+					case OutputTypes.APPLESPATIAL51SIDE:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 15
 								processingRequest.push({
@@ -5183,9 +5244,9 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 						}
-						if (selectedOutputFileType == 14) { // Audio & Video Compressed (generated video)
+						if (outputFileTypeKey === 'M4A') { // Audio & Video Compressed (generated video)
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 15
 								processingRequest.push({
@@ -5237,10 +5298,10 @@ $(document).ready(async function() {
 						}
 						break;
 						//M1SPATIAL to 7.1.2 ADM Channel Bed for ADM or Dolby Atmos usage
-					case "28":
-						if (selectedOutputFileType == 1) { // Audio only compressed
+					case OutputTypes.ADM712:
+						if (outputFileTypeKey === 'M4A') { // Audio only compressed
 						}
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 1
 								processingRequest.push({
@@ -5263,14 +5324,15 @@ $(document).ready(async function() {
 								});
 							}
 						}
-						if (selectedOutputFileType == 3) { // Audio & Video compressed
+						if (outputFileTypeKey === 'MP4') { // Audio & Video compressed
 						}
-						if (selectedOutputFileType == 4) { // Audio & Video uncompressed
+						if (outputFileTypeKey === 'MOV') { // Audio & Video uncompressed
 						}
 						break;
+
 						//Custom Format defined by InputJSON file 
-					case "99":
-						if (selectedOutputFileType == 2) { // Audio only uncompressed
+					case OutputTypes.CUSTOMFORMAT:
+						if (outputFileTypeKey === 'WAV') { // Audio only uncompressed
 							if (inputStaticStereoFilename == "") {
 								// No optional stereo, case 1
 								processingRequest.push({
