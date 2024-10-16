@@ -174,7 +174,7 @@ $(document).ready(async function() {
 		  }
 		}
 		throw new Error('No matching recipe found for the given variables.');
-	  }	
+	}	
 
 	function checkSpatialAudioInput() {
 		const exec = require('child_process').execSync;
@@ -1230,6 +1230,25 @@ $(document).ready(async function() {
 				  },
 				  recipe: [
 					{
+					  process_kind: () => {
+							const inputAudioFile = window.inputAudioFiles[0];
+							const channelCount = getChannelCount(inputAudioFile);
+	
+							if (channelCount === 4) {
+							return '4_channel_pcm_to_wav';
+							} else if (channelCount === 6) {
+							return '6_channel_pcm_to_wav';
+							} else if (channelCount === 8) {
+							return '8_channel_pcm_to_wav_output';
+							} else if (channelCount === 9) {
+							return '9_channel_pcm_to_wav';
+							} else if (channelCount === 16) {
+							return '16_channel_pcm_to_wav';
+							} else {
+							console.error(`Unsupported number of channels: ${channelCount}`);
+							throw new Error(`Unsupported number of channels: ${channelCount}`);
+							}
+					  },
 					  process_kind: '8_channel_pcm_to_wav_output',
 					  bitdepth: window.OutputBitDepthShort,
 					  input_filename: 'inputspatialaudio.wav',
@@ -1665,8 +1684,4693 @@ $(document).ready(async function() {
 					},
 					],
 				},
-				// ADD REMAINING RECIPES!!!
-			  ];
+				// --- M1HORIZON_PAIRS_SINGLE ---
+				// Audio only compressed AAC without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.M1HORIZON_PAIRS_SINGLE,
+					outputFileTypeKey: 'M4A',
+					hasStereoAudioFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'M1HorizonPairs',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '8_channel_pcm_to_m4a',
+						input_filename: 'output_audio.wav',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				// Audio only compressed AAC with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.M1HORIZON_PAIRS_SINGLE,
+					outputFileTypeKey: 'M4A',
+					hasStereoAudioFile: true,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'M1HorizonPairs',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '8_channel_pcm_to_m4a',
+						input_filename: 'output_audio.wav',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				// Audio only compressed OGG without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.M1HORIZON_PAIRS_SINGLE,
+					outputFileTypeKey: 'OGG',
+					hasStereoAudioFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'M1HorizonPairs',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '8_channel_pcm_to_ogg',
+						input_filename: 'output_audio.wav',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				// Audio only compressed OGG with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.M1HORIZON_PAIRS_SINGLE,
+					outputFileTypeKey: 'OGG',
+					hasStereoAudioFile: true,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'M1HorizonPairs',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '8_channel_pcm_to_ogg',
+						input_filename: 'output_audio.wav',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				// Audio only uncompressed WAV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.M1HORIZON_PAIRS_SINGLE,
+					outputFileTypeKey: 'WAV',
+					hasStereoAudioFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'M1HorizonPairs',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				// Audio only uncompressed WAV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.M1HORIZON_PAIRS_SINGLE,
+					outputFileTypeKey: 'WAV',
+					hasStereoAudioFile: true,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'M1HorizonPairs',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				// Audio & Video compressed MP4 without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.M1HORIZON_PAIRS_SINGLE,
+					outputFileTypeKey: 'MP4',
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav_output',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'M1HorizonPairs',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '8_channel_pcm_to_m4a',
+						input_filename: 'output_audio.wav',
+						output_filename: 'MERGED.m4a',
+					},
+					{
+						process_kind: 'attach_audio_to_video_hard',
+						input_audio: 'MERGED.m4a',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				// Audio & Video compressed MP4 with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.M1HORIZON_PAIRS_SINGLE,
+					outputFileTypeKey: 'MP4',
+					hasStereoAudioFile: true,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'M1HorizonPairs',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '8_channel_pcm_to_m4a',
+						input_filename: 'output_audio.wav',
+						output_filename: 'MERGED.m4a',
+					},
+					{
+						process_kind: 'attach_audio_to_video_hard',
+						input_audio: 'MERGED.m4a',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				// Audio & Video uncompressed MOV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.M1HORIZON_PAIRS_SINGLE,
+					outputFileTypeKey: 'MOV',
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'M1HorizonPairs',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'output_audio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_hard',
+						input_audio: 'MERGED.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				// Audio & Video uncompressed MOV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.M1HORIZON_PAIRS_SINGLE,
+					outputFileTypeKey: 'MOV',
+					hasStereoAudioFile: true,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'M1HorizonPairs',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_hard',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+
+				// --- M1HORIZON_PAIRS_MULTI ---
+
+				// Audio & Video compressed MP4 without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.M1HORIZON_PAIRS_MULTI,
+					outputFileTypeKey: 'MP4',
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'M1HorizonPairs',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'make_4x2_audio_to_video',
+						input_filename: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				// Audio & Video compressed MP4 with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.M1HORIZON_PAIRS_MULTI,
+					outputFileTypeKey: 'MP4',
+					hasStereoAudioFile: true,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'M1HorizonPairs',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'make_4x2_audio_to_video',
+						input_filename: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				// Audio & Video uncompressed MOV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.M1HORIZON_PAIRS_MULTI,
+					outputFileTypeKey: 'MOV',
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'M1HorizonPairs',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'make_4x2_audio_to_video',
+						input_filename: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				// Audio & Video uncompressed MOV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.M1HORIZON_PAIRS_MULTI,
+					outputFileTypeKey: 'MOV',
+					hasStereoAudioFile: true,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'M1HorizonPairs',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'make_4x2_audio_to_video',
+						input_filename: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				// --- OutputTypes.ACNSN3D ---
+				// Audio only compressed AAC without stereo
+				{
+					conditions: {
+					selectedOutputType: OutputTypes.ACNSN3D,
+					outputFileTypeKey: 'M4A', // Audio only compressed AAC
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'ACNSN3D',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '4_channel_pcm_to_m4a',
+						input_filename: 'output_audio.wav',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only compressed AAC with stereo
+				{
+					conditions: {
+					selectedOutputType: OutputTypes.ACNSN3D,
+					outputFileTypeKey: 'M4A', // Audio only compressed AAC
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'ACNSN3D',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '4_channel_pcm_to_m4a_plus_stereo',
+						input_filename: 'output_audio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only compressed OGG without stereo
+				{
+					conditions: {
+					selectedOutputType: OutputTypes.ACNSN3D,
+					outputFileTypeKey: 'OGG', // Audio only compressed OGG Vorbis
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'ACNSN3D',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '4_channel_pcm_to_ogg',
+						input_filename: 'output_audio.wav',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only compressed OGG with stereo
+				{
+					conditions: {
+					selectedOutputType: OutputTypes.ACNSN3D,
+					outputFileTypeKey: 'OGG', // Audio only compressed OGG Vorbis
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'ACNSN3D',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '4_channel_pcm_to_ogg_plus_stereo',
+						input_filename: 'output_audio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV without stereo
+				{
+					conditions: {
+					selectedOutputType: OutputTypes.ACNSN3D,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					// GAIN UTILITY FOR oFOA (commented out in original code)
+					// {
+					//   process_kind: 'ffmpeg-gain',
+					//   input_filename: 'MERGED.wav',
+					//   gain: '0.204',
+					//   output_filename: 'MERGEDgain.wav',
+					// },
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'ACNSN3D',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV with stereo
+				{
+					conditions: {
+					selectedOutputType: OutputTypes.ACNSN3D,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'inputspatialaudio.wav',
+						input_format: 'M1Spatial',
+						output_format: 'ACNSN3D',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '4_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'output_audio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video compressed MP4 without stereo (Monoscopic)
+				{
+					conditions: {
+					selectedOutputType: OutputTypes.ACNSN3D,
+					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'ACNSN3D',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '4_channel_pcm_to_m4a',
+						input_filename: 'output_audio.wav',
+						output_filename: 'MERGED.m4a',
+					},
+					{
+						process_kind: 'attach_audio_to_video_hard',
+						input_audio: 'MERGED.m4a',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: 'videooutput_forinject.mp4',
+					},
+					{
+						process_kind: 'youtube-meta',
+						videoScopic: 'none',
+						input_filename: 'videooutput_forinject.mp4',
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video compressed MP4 with stereo (Monoscopic)
+				{
+					conditions: {
+					selectedOutputType: OutputTypes.ACNSN3D,
+					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					hasStereoAudioFile: true,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'ACNSN3D',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '4_channel_pcm_to_m4a',
+						input_filename: 'output_audio.wav',
+						output_filename: 'MERGED.m4a',
+					},
+					{
+						process_kind: 'attach_audio_to_video_hard',
+						input_audio: 'MERGED.m4a',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: 'videooutput_forinject.mp4',
+					},
+					{
+						process_kind: 'youtube-meta',
+						videoScopic: 'none',
+						input_filename: 'videooutput_forinject.mp4',
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video compressed MP4 without stereo (Top-Bottom Stereoscopic)
+				{
+					conditions: {
+					selectedOutputType: OutputTypes.ACNSN3D,
+					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'ACNSN3D',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '4_channel_pcm_to_m4a',
+						input_filename: 'output_audio.wav',
+						output_filename: 'MERGED.m4a',
+					},
+					{
+						process_kind: 'attach_audio_to_video_hard',
+						input_audio: 'MERGED.m4a',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: 'videooutput_forinject.mp4',
+					},
+					{
+						process_kind: 'youtube-meta',
+						videoScopic: 'top-bottom',
+						input_filename: 'videooutput_forinject.mp4',
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video compressed MP4 with stereo (Top-Bottom Stereoscopic)
+				{
+					conditions: {
+					selectedOutputType: OutputTypes.ACNSN3D,
+					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					hasStereoAudioFile: true,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'ACNSN3D',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '4_channel_pcm_to_m4a',
+						input_filename: 'output_audio.wav',
+						output_filename: 'MERGED.m4a',
+					},
+					{
+						process_kind: 'attach_audio_to_video_hard',
+						input_audio: 'MERGED.m4a',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: 'videooutput_forinject.mp4',
+					},
+					{
+						process_kind: 'youtube-meta',
+						videoScopic: 'top-bottom',
+						input_filename: 'videooutput_forinject.mp4',
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video compressed MP4 without stereo (Left-Right Stereoscopic)
+				{
+					conditions: {
+					selectedOutputType: OutputTypes.ACNSN3D,
+					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'ACNSN3D',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '4_channel_pcm_to_m4a',
+						input_filename: 'output_audio.wav',
+						output_filename: 'MERGED.m4a',
+					},
+					{
+						process_kind: 'attach_audio_to_video_hard',
+						input_audio: 'MERGED.m4a',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: 'videooutput_forinject.mp4',
+					},
+					{
+						process_kind: 'youtube-meta',
+						videoScopic: 'left-right',
+						input_filename: 'videooutput_forinject.mp4',
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video compressed MP4 with stereo (Left-Right Stereoscopic)
+				{
+					conditions: {
+					selectedOutputType: OutputTypes.ACNSN3D,
+					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					hasStereoAudioFile: true,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'ACNSN3D',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '4_channel_pcm_to_m4a',
+						input_filename: 'output_audio.wav',
+						output_filename: 'MERGED.m4a',
+					},
+					{
+						process_kind: 'attach_audio_to_video_hard',
+						input_audio: 'MERGED.m4a',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: 'videooutput_forinject.mp4',
+					},
+					{
+						process_kind: 'youtube-meta',
+						videoScopic: 'left-right',
+						input_filename: 'videooutput_forinject.mp4',
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video uncompressed MOV without stereo (Monoscopic)
+				{
+					conditions: {
+					selectedOutputType: OutputTypes.ACNSN3D,
+					outputFileTypeKey: 'MOV', // Audio & Video uncompressed
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'ACNSN3D',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: 'videooutput_forinject.mov',
+					},
+					{
+						process_kind: 'youtube-meta',
+						videoScopic: 'none',
+						input_filename: 'videooutput_forinject.mov',
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video uncompressed MOV with stereo (Monoscopic)
+				{
+					conditions: {
+					selectedOutputType: OutputTypes.ACNSN3D,
+					outputFileTypeKey: 'MOV', // Audio & Video uncompressed
+					hasStereoAudioFile: true,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'ACNSN3D',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: 'videooutput_forinject.mov',
+					},
+					{
+						process_kind: 'youtube-meta',
+						videoScopic: 'none',
+						input_filename: 'videooutput_forinject.mov',
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video uncompressed MOV without stereo (Top-Bottom Stereoscopic)
+				{
+					conditions: {
+					selectedOutputType: OutputTypes.ACNSN3D,
+					outputFileTypeKey: 'MOV', // Audio & Video uncompressed
+					hasStereoAudioFile: false,
+					hasVideoFile: true, 
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'ACNSN3D',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: 'videooutput_forinject.mov',
+					},
+					{
+						process_kind: 'youtube-meta',
+						videoScopic: 'top-bottom',
+						input_filename: 'videooutput_forinject.mov',
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video uncompressed MOV with stereo (Top-Bottom Stereoscopic)
+				{
+					conditions: {
+					selectedOutputType: OutputTypes.ACNSN3D,
+					outputFileTypeKey: 'MOV', // Audio & Video uncompressed
+					hasStereoAudioFile: true,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'ACNSN3D',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: 'videooutput_forinject.mov',
+					},
+					{
+						process_kind: 'youtube-meta',
+						videoScopic: 'top-bottom',
+						input_filename: 'videooutput_forinject.mov',
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video uncompressed MOV without stereo (Left-Right Stereoscopic)
+				{
+					conditions: {
+					selectedOutputType: OutputTypes.ACNSN3D,
+					outputFileTypeKey: 'MOV', // Audio & Video uncompressed
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'ACNSN3D',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: 'videooutput_forinject.mov',
+					},
+					{
+						process_kind: 'youtube-meta',
+						videoScopic: 'left-right',
+						input_filename: 'videooutput_forinject.mov',
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video uncompressed MOV with stereo (Left-Right Stereoscopic)
+				{
+					conditions: {
+					selectedOutputType: OutputTypes.ACNSN3D,
+					outputFileTypeKey: 'MOV', // Audio & Video uncompressed
+					hasStereoAudioFile: true,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'ACNSN3D',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: 'videooutput_forinject.mov',
+					},
+					{
+						process_kind: 'youtube-meta',
+						videoScopic: 'left-right',
+						input_filename: 'videooutput_forinject.mov',
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				// --- OutputTypes.FOAFUMA ---
+
+				// Audio only compressed AAC without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.FOAFUMA,
+					outputFileTypeKey: 'M4A', // Audio only compressed AAC
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FuMa',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '4_channel_pcm_to_m4a',
+						input_filename: 'output_audio.wav',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only compressed AAC with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.FOAFUMA,
+					outputFileTypeKey: 'M4A', // Audio only compressed AAC
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FuMa',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '4_channel_pcm_to_m4a_plus_stereo',
+						input_filename: 'output_audio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only compressed OGG without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.FOAFUMA,
+					outputFileTypeKey: 'OGG', // Audio only compressed OGG Vorbis
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FuMa',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '4_channel_pcm_to_ogg',
+						input_filename: 'output_audio.wav',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only compressed OGG with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.FOAFUMA,
+					outputFileTypeKey: 'OGG', // Audio only compressed OGG Vorbis
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FuMa',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '4_channel_pcm_to_ogg_plus_stereo',
+						input_filename: 'output_audio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.FOAFUMA,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FuMa',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.FOAFUMA,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FuMa',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '4_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'output_audio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video compressed MP4 without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.FOAFUMA,
+					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FuMa',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '4_channel_pcm_to_m4a',
+						input_filename: 'output_audio.wav',
+						output_filename: 'MERGED.m4a',
+					},
+					{
+						process_kind: 'attach_audio_to_video_hard',
+						input_audio: 'MERGED.m4a',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video compressed MP4 with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.FOAFUMA,
+					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					hasStereoAudioFile: true,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FuMa',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '4_channel_pcm_to_m4a_plus_stereo',
+						input_filename: 'output_audio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.m4a',
+					},
+					{
+						process_kind: 'attach_audio_to_video_hard',
+						input_audio: 'MERGED.m4a',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video uncompressed MOV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.FOAFUMA,
+					outputFileTypeKey: 'MOV', // Audio & Video uncompressed
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FuMa',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video uncompressed MOV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.FOAFUMA,
+					outputFileTypeKey: 'MOV', // Audio & Video uncompressed
+					hasStereoAudioFile: true,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FuMa',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '4_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'output_audio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_hard',
+						input_audio: 'MERGED.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				// --- OutputTypes.SOAACNSN3D ---
+
+				// Audio only compressed AAC without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SOAACNSN3D,
+					outputFileTypeKey: 'M4A', // Audio only compressed AAC
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'ACNSN3DO2A',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SOAACNSN3D,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed WAV
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'ACNSN3DO2A',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video compressed MP4 without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SOAACNSN3D,
+					outputFileTypeKey: 'MP4', // Audio & Video compressed MP4
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'ACNSN3DO2A',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video uncompressed MOV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SOAACNSN3D,
+					outputFileTypeKey: 'MOV', // Audio & Video uncompressed MOV
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'ACNSN3DO2A',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// --- OutputTypes.SOAFUMA ---
+				
+				// Audio only uncompressed WAV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SOAFUMA,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed WAV
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FuMaO2A',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video compressed MP4 without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SOAFUMA,
+					outputFileTypeKey: 'MP4', // Audio & Video compressed MP4
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FuMaO2A',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video uncompressed MOV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SOAFUMA,
+					outputFileTypeKey: 'MOV', // Audio & Video uncompressed MOV
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'ffmpeg-gain',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'MERGED.wav',
+						gain: '0.204',
+						output_filename: 'MERGEDgain.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGEDgain.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FuMaO2A',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				// --- OutputTypes.SURROUND51CINEMA ---
+
+				// Audio only compressed AAC without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51CINEMA,
+					outputFileTypeKey: 'M4A', // Audio only compressed AAC
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FiveOneFilm_Cinema',
+						output_channelnum: '0',
+						output_filename: 'outputaudio.wav',
+					},
+					{
+						process_kind: '6_channel_pcm_to_m4a',
+						input_filename: 'outputaudio.wav',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only compressed AAC with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51CINEMA,
+					outputFileTypeKey: 'M4A', // Audio only compressed AAC
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'FiveOneFilm_Cinema',
+						output_channelnum: '0',
+						output_filename: 'outputaudio.wav',
+					},
+					{
+						process_kind: '6_channel_pcm_to_m4a',
+						input_filename: 'outputaudio.wav',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only compressed OGG without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51CINEMA,
+					outputFileTypeKey: 'OGG', // Audio only compressed OGG Vorbis
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FiveOneFilm_Cinema',
+						output_channelnum: '0',
+						output_filename: 'outputaudio.wav',
+					},
+					{
+						process_kind: '6_channel_pcm_to_ogg',
+						input_filename: 'outputaudio.wav',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only compressed OGG with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51CINEMA,
+					outputFileTypeKey: 'OGG', // Audio only compressed OGG Vorbis
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'FiveOneFilm_Cinema',
+						output_channelnum: '0',
+						output_filename: 'outputaudio.wav',
+					},
+					{
+						process_kind: '6_channel_pcm_to_ogg',
+						input_filename: 'outputaudio.wav',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51CINEMA,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed WAV
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FiveOneFilm_Cinema',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51CINEMA,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed WAV
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'FiveOneFilm_Cinema',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video compressed MP4 without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51CINEMA,
+					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FiveOneFilm_Cinema',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video compressed MP4 with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51CINEMA,
+					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					hasStereoAudioFile: true,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'FiveOneFilm_Cinema',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video uncompressed MOV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51CINEMA,
+					outputFileTypeKey: 'MOV', // Audio & Video uncompressed
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FiveOneFilm_Cinema',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video uncompressed MOV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51CINEMA,
+					outputFileTypeKey: 'MOV', // Audio & Video uncompressed
+					hasStereoAudioFile: true,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'FiveOneFilm_Cinema',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// --- OutputTypes.SURROUND51SMPTE ---
+				
+				// Audio only compressed AAC without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51SMPTE,
+					outputFileTypeKey: 'M4A', // Audio only compressed AAC
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FiveOneSmpte',
+						output_channelnum: '0',
+						output_filename: 'outputaudio.wav',
+					},
+					{
+						process_kind: '6_channel_pcm_to_m4a',
+						input_filename: 'outputaudio.wav',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only compressed AAC with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51SMPTE,
+					outputFileTypeKey: 'M4A', // Audio only compressed AAC
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'FiveOneSmpte',
+						output_channelnum: '0',
+						output_filename: 'outputaudio.wav',
+					},
+					{
+						process_kind: '6_channel_pcm_to_m4a',
+						input_filename: 'outputaudio.wav',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only compressed OGG without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51SMPTE,
+					outputFileTypeKey: 'OGG', // Audio only compressed OGG Vorbis
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FiveOneSmpte',
+						output_channelnum: '0',
+						output_filename: 'outputaudio.wav',
+					},
+					{
+						process_kind: '6_channel_pcm_to_ogg',
+						input_filename: 'outputaudio.wav',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only compressed OGG with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51SMPTE,
+					outputFileTypeKey: 'OGG', // Audio only compressed OGG Vorbis
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'FiveOneSmpte',
+						output_channelnum: '0',
+						output_filename: 'outputaudio.wav',
+					},
+					{
+						process_kind: '6_channel_pcm_to_ogg',
+						input_filename: 'outputaudio.wav',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51SMPTE,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed WAV
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: outputVideoFilename,
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: outputVideoFilename,
+						input_format: 'M1Spatial',
+						output_format: 'FiveOneSmpte',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51SMPTE,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed WAV
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'FiveOneSmpte',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video compressed MP4 without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51SMPTE,
+					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FiveOneSmpte',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video compressed MP4 with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51SMPTE,
+					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					hasStereoAudioFile: true,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'FiveOneSmpte',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video uncompressed MOV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51SMPTE,
+					outputFileTypeKey: 'MOV', // Audio & Video uncompressed
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FiveOneSmpte',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video uncompressed MOV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51SMPTE,
+					outputFileTypeKey: 'MOV', // Audio & Video uncompressed
+					hasStereoAudioFile: true,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'FiveOneSmpte',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				// --- OutputTypes.SURROUND51DTS ---
+
+				// Audio only compressed AAC without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51DTS,
+					outputFileTypeKey: 'M4A', // Audio only compressed AAC
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FiveOneDts',
+						output_channelnum: '0',
+						output_filename: 'outputaudio.wav',
+					},
+					{
+						process_kind: '6_channel_pcm_to_m4a',
+						input_filename: 'outputaudio.wav',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only compressed AAC with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51DTS,
+					outputFileTypeKey: 'M4A', // Audio only compressed AAC
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'FiveOneDts',
+						output_channelnum: '0',
+						output_filename: 'outputaudio.wav',
+					},
+					{
+						process_kind: '6_channel_pcm_to_m4a',
+						input_filename: 'outputaudio.wav',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only compressed OGG without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51DTS,
+					outputFileTypeKey: 'OGG', // Audio only compressed OGG Vorbis
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FiveOneDts',
+						output_channelnum: '0',
+						output_filename: 'outputaudio.wav',
+					},
+					{
+						process_kind: '6_channel_pcm_to_ogg',
+						input_filename: 'outputaudio.wav',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only compressed OGG with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51DTS,
+					outputFileTypeKey: 'OGG', // Audio only compressed OGG Vorbis
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'FiveOneDts',
+						output_channelnum: '0',
+						output_filename: 'outputaudio.wav',
+					},
+					{
+						process_kind: '6_channel_pcm_to_ogg',
+						input_filename: 'outputaudio.wav',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51DTS,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed WAV
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FiveOneDts',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51DTS,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed WAV
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'FiveOneDts',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video compressed MP4 without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51DTS,
+					outputFileTypeKey: 'MP4', // Audio & Video compressed MP4
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FiveOneDts',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video compressed MP4 with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51DTS,
+					outputFileTypeKey: 'MP4', // Audio & Video compressed MP4
+					hasStereoAudioFile: true,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'FiveOneDts',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video uncompressed MOV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51DTS,
+					outputFileTypeKey: 'MOV', // Audio & Video uncompressed MOV
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FiveOneDts',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video uncompressed MOV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND51DTS,
+					outputFileTypeKey: 'MOV', // Audio & Video uncompressed MOV
+					hasStereoAudioFile: true,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'FiveOneDts',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// --- OutputTypes.SURROUND50 ---
+				
+				// Audio only uncompressed WAV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND50,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed WAV
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FiveOh',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND50,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed WAV
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'FiveOh',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				// --- OutputTypes.SURROUND71 ---
+
+				// Audio only compressed AAC without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND71,
+					outputFileTypeKey: 'M4A', // Audio only compressed AAC
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'SevenOnePt_Cinema',
+						output_channelnum: '0',
+						output_filename: 'outputaudio.wav',
+					},
+					{
+						process_kind: '8_channel_pcm_to_m4a',
+						input_filename: 'outputaudio.wav',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only compressed AAC with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND71,
+					outputFileTypeKey: 'M4A', // Audio only compressed AAC
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'SevenOnePt_Cinema',
+						output_channelnum: '0',
+						output_filename: 'outputaudio.wav',
+					},
+					{
+						process_kind: '8_channel_pcm_to_m4a',
+						input_filename: 'outputaudio.wav',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only compressed OGG without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND71,
+					outputFileTypeKey: 'OGG', // Audio only compressed OGG Vorbis
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'SevenOnePt_Cinema',
+						output_channelnum: '0',
+						output_filename: 'outputaudio.wav',
+					},
+					{
+						process_kind: '8_channel_pcm_to_ogg',
+						input_filename: 'outputaudio.wav',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only compressed OGG with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND71,
+					outputFileTypeKey: 'OGG', // Audio only compressed OGG Vorbis
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'SevenOnePt_Cinema',
+						output_channelnum: '0',
+						output_filename: 'outputaudio.wav',
+					},
+					{
+						process_kind: '8_channel_pcm_to_ogg',
+						input_filename: 'outputaudio.wav',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND71,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed WAV
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'SevenOnePt_Cinema',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND71,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed WAV
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'SevenOnePt_Cinema',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video compressed MP4 without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND71,
+					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'SevenOnePt_Cinema',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '8_channel_pcm_to_m4a',
+						input_filename: 'output_audio.wav',
+						output_filename: 'MERGED.m4a',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'MERGED.m4a',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video compressed MP4 with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND71,
+					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					hasStereoAudioFile: true,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'SevenOnePt_Cinema',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '8_channel_pcm_to_m4a',
+						input_filename: 'output_audio.wav',
+						output_filename: 'MERGED.m4a',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'MERGED.m4a',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video uncompressed MOV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND71,
+					outputFileTypeKey: 'MOV', // Audio & Video uncompressed
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'SevenOnePt_Cinema',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '8_channel_pcm_to_m4a',
+						input_filename: 'output_audio.wav',
+						output_filename: 'MERGED.m4a',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'MERGED.m4a',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video uncompressed MOV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND71,
+					outputFileTypeKey: 'MOV', // Audio & Video uncompressed
+					hasStereoAudioFile: true,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'SevenOnePt_Cinema',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '8_channel_pcm_to_m4a',
+						input_filename: 'output_audio.wav',
+						output_filename: 'MERGED.m4a',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'MERGED.m4a',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// --- OutputTypes.SURROUND70 ---
+				
+				// Audio only uncompressed WAV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND70,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed WAV
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'SevenZero_Cinema',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND70,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed WAV
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'SevenZero_Cinema',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				// --- OutputTypes.FB360TBE ---
+
+				// Audio only uncompressed WAV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.FB360TBE,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed WAV
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'inputspatialaudio.wav',
+						input_format: 'M1Spatial',
+						output_format: 'TBE',
+						output_channelnum: '0',
+						output_filename: 'makeTBE.wav',
+					},
+					{
+						process_kind: 'TBE_copy_to_dir',
+						output_filename: outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf('.')),
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.FB360TBE,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed WAV
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'inputspatialaudio.wav',
+						input_format: 'M1Spatial',
+						output_format: 'TBE',
+						output_channelnum: '0',
+						output_filename: 'makeTBE.wav',
+					},
+					{
+						process_kind: 'TBE_copy_to_dir_plus_stereo',
+						output_filename: outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf('.')),
+						stereo_filename: inputStaticStereoFilename,
+					},
+					],
+				},
+				
+				// --- OutputTypes.ACNSN3D3OA ---
+				
+				// Audio only uncompressed WAV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.ACNSN3D3OA,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed WAV
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'inputspatialaudio.wav',
+						input_format: 'M1Spatial',
+						output_format: 'ACNSN3DO3A',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video compressed MP4 without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.ACNSN3D3OA,
+					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'ACNSN3DO3A',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video uncompressed MOV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.ACNSN3D3OA,
+					outputFileTypeKey: 'MOV', // Audio & Video uncompressed
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'ACNSN3DO3A',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// --- OutputTypes.FUMA3OA ---
+				
+				// Audio only uncompressed WAV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.FUMA3OA,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed WAV
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FuMaO3A',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video compressed MP4 without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.FUMA3OA,
+					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FuMaO3A',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video uncompressed MOV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.FUMA3OA,
+					outputFileTypeKey: 'MOV', // Audio & Video uncompressed
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FuMaO3A',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: 'attach_audio_to_video_soft',
+						input_audio: 'output_audio.wav',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				// --- OutputTypes.SURROUND512 ---
+
+				// Audio only uncompressed WAV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND512,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FiveOneTwo',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND512,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'FiveOneTwo',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// --- OutputTypes.SURROUND502 ---
+				
+				// Audio only uncompressed WAV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND502,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FiveZeroTwo',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND502,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'FiveZeroTwo',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// --- OutputTypes.SURROUND514 ---
+				
+				// Audio only uncompressed WAV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND514,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FiveOneFour',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND514,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'FiveOneFour',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// --- OutputTypes.SURROUND504 ---
+				
+				// Audio only uncompressed WAV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND504,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FiveZeroFour',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND504,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'FiveZeroFour',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				// --- OutputTypes.SURROUND71SDDS ---
+
+				// Audio only uncompressed WAV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND71SDDS,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'SevenOneSDDS',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND71SDDS,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'SevenOneSDDS',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// --- OutputTypes.SURROUND712 ---
+				
+				// Audio only uncompressed WAV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND712,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'SevenOneTwo',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND712,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'SevenOneTwo',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// --- OutputTypes.SURROUND714 ---
+				
+				// Audio only uncompressed WAV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND714,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'SevenOneFour',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.SURROUND714,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'SevenOneFour',
+						output_channelnum: '0',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				// --- OutputTypes.MACH1SDKUNITYUNREAL ---
+				// Note: There seems to be an inconsistency in the provided code where `outputFileTypeKey === 'M4A'` is used for both AAC and OGG. Assuming the second case should be `outputFileTypeKey === 'OGG'`.
+
+				// Audio only compressed AAC without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.MACH1SDKUNITYUNREAL,
+					outputFileTypeKey: 'M4A', // Audio only compressed AAC
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'copy_to_output_dir_m4a',
+						output_dir: outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf('/')) + '/',
+					},
+					],
+				},
+				
+				// Audio only compressed OGG without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.MACH1SDKUNITYUNREAL,
+					outputFileTypeKey: 'OGG', // Audio only compressed OGG Vorbis
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'copy_to_output_dir_ogg',
+						output_dir: outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf('/')) + '/',
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.MACH1SDKUNITYUNREAL,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed WAV
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'copy_to_output_dir_wav',
+						output_dir: outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf('/')) + '/',
+					},
+					],
+				},
+				
+				// --- OutputTypes.M1SPATIALSAMSUNGVR ---
+				
+				// Audio & Video compressed MP4 without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.M1SPATIALSAMSUNGVR,
+					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+					},
+					{
+						process_kind: 'spatial_to_samsungvr',
+						input_filename: 'MERGED.wav',
+						input_video: inputVideoFilename,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video compressed MP4 with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.M1SPATIALSAMSUNGVR,
+					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					hasStereoAudioFile: true,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+					},
+					{
+						process_kind: 'spatial_to_samsungvr_plus_stereo',
+						input_filename: 'MERGED.wav',
+						stereo_filename: inputStaticStereoFilename,
+						input_video: inputVideoFilename,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video uncompressed MOV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.M1SPATIALSAMSUNGVR,
+					outputFileTypeKey: 'MOV', // Audio & Video uncompressed
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+					},
+					{
+						process_kind: 'spatial_to_samsungvr',
+						input_filename: 'MERGED.wav',
+						input_video: inputVideoFilename,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video uncompressed MOV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.M1SPATIALSAMSUNGVR,
+					outputFileTypeKey: 'MOV', // Audio & Video uncompressed
+					hasStereoAudioFile: true,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+					},
+					{
+						process_kind: 'spatial_to_samsungvr_plus_stereo',
+						input_filename: 'MERGED.wav',
+						stereo_filename: inputStaticStereoFilename,
+						input_video: inputVideoFilename,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// --- OutputTypes.APPLESPATIAL51SIDE ---
+				
+				// Audio & Video compressed MP4 without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.APPLESPATIAL51SIDE,
+					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					hasStereoAudioFile: false,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FiveOneSmpte',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '6_channel_pcm_to_eac3',
+						input_filename: 'output_audio.wav',
+						output_filename: 'output_audio.ac3',
+					},
+					{
+						process_kind: 'attach_audio_to_video_hard',
+						input_audio: 'output_audio.ac3',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video compressed MP4 with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.APPLESPATIAL51SIDE,
+					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					hasStereoAudioFile: true,
+					hasVideoFile: true,
+					},
+					recipe: [
+					{
+						process_kind: 'ffmpeg-mute',
+						input_video: inputVideoFilename,
+						output_video: 'muted-video.' + window.inputVideoExt,
+					},
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'FiveOneSmpte',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '6_channel_pcm_to_eac3',
+						input_filename: 'output_audio.wav',
+						output_filename: 'output_audio.ac3',
+					},
+					{
+						process_kind: 'attach_audio_to_video_hard',
+						input_audio: 'output_audio.ac3',
+						input_video: 'muted-video.' + window.inputVideoExt,
+						output_video: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video compressed M4A (generated video) without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.APPLESPATIAL51SIDE,
+					outputFileTypeKey: 'M4A', // Audio & Video Compressed (generated video)
+					hasStereoAudioFile: false,
+					hasVideoFile: false, // Video is generated
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial',
+						output_format: 'FiveOneSmpte',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '6_channel_pcm_to_eac3_spawnvideo',
+						input_filename: 'output_audio.wav',
+						input_video_image: '../resources/m1blank.png',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},
+				
+				// Audio & Video compressed M4A (generated video) with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.APPLESPATIAL51SIDE,
+					outputFileTypeKey: 'M4A', // Audio & Video Compressed (generated video)
+					hasStereoAudioFile: true,
+					hasVideoFile: false, // Video is generated
+					},
+					recipe: [
+					{
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
+						input_filename: 'inputspatialaudio.wav',
+						stereo_filename: inputStaticStereoFilename,
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode_normalize',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
+						output_format: 'FiveOneSmpte',
+						output_channelnum: '0',
+						output_filename: 'output_audio.wav',
+					},
+					{
+						process_kind: '6_channel_pcm_to_eac3_spawnvideo',
+						input_filename: 'output_audio.wav',
+						input_video_image: '../resources/m1blank.png',
+						output_filename: outputVideoFilename,
+					},
+					],
+				},  
+				// --- OutputTypes.ADM712 ---
+
+				// Audio only uncompressed WAV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.ADM712,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: 'm1transcode',
+						input_filename: 'inputspatialaudio.wav',
+						input_format: 'M1Spatial',
+						output_filename: outputVideoFilename,
+						output_format: 'DolbyAtmosSevenOneTwo',
+						output_channelnum: '0',
+					},
+					],
+				},
+				
+				// Audio only uncompressed WAV with stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.ADM712,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed
+					hasStereoAudioFile: true,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: 'm1transcode',
+						input_filename: 'inputspatialaudio.wav',
+						input_format: 'M1SpatialS',
+						output_filename: outputVideoFilename,
+						output_format: 'DolbyAtmosSevenOneTwo',
+						output_channelnum: '0',
+					},
+					],
+				},
+				
+				// --- OutputTypes.CUSTOMFORMAT ---
+				
+				// Audio only uncompressed WAV without stereo
+				{
+					conditions: {
+					inputAudioFilesLength: 1,
+					selectedOutputType: OutputTypes.CUSTOMFORMAT,
+					outputFileTypeKey: 'WAV', // Audio only uncompressed
+					hasStereoAudioFile: false,
+					hasVideoFile: false,
+					},
+					recipe: [
+					{
+						process_kind: 'm1transcode_json',
+						input_filename: 'inputspatialaudio.wav',
+						input_format: 'M1Spatial',
+						output_Json: inputJsonFilename,
+						output_filename: outputVideoFilename,
+						output_format: 'TTPoints',
+						output_channelnum: '0',
+					},
+					],
+				},
+			];
 
 			// Set recipe selection variables
 			const inputAudioFilesLength = window.inputAudioFiles.length;
