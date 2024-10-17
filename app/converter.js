@@ -1249,7 +1249,6 @@ $(document).ready(async function() {
 							throw new Error(`Unsupported number of channels: ${channelCount}`);
 							}
 					  },
-					  process_kind: '8_channel_pcm_to_wav_output',
 					  bitdepth: window.OutputBitDepthShort,
 					  input_filename: 'inputspatialaudio.wav',
 					  output_filename: outputVideoFilename,
@@ -1266,7 +1265,21 @@ $(document).ready(async function() {
 				  },
 				  recipe: [
 					{
-					  process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						process_kind: () => {
+							const inputAudioFile = window.inputAudioFiles[0];
+							const channelCount = getChannelCount(inputAudioFile);
+	
+							if (channelCount === 4) {
+							return '4_channel_pcm_to_wav_plus_stereo';
+							} else if (channelCount === 6) {
+							return '6_channel_pcm_to_wav_plus_stereo';
+							} else if (channelCount === 8) {
+							return '8_channel_pcm_to_wav_plus_stereo';
+							} else {
+							console.error(`Unsupported number of channels: ${channelCount}`);
+							throw new Error(`Unsupported number of channels: ${channelCount}`);
+							}
+					  },
 					  bitdepth: window.OutputBitDepthShort,
 					  input_filename: 'inputspatialaudio.wav',
 					  stereo_filename: inputStaticStereoFilename,
