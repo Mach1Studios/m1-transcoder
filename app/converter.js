@@ -6205,7 +6205,25 @@ $(document).ready(async function() {
 					},
 					recipe: [
 					{
-						process_kind: '8_channel_pcm_to_wav',
+						process_kind: () => {
+							const inputAudioFile = window.inputAudioFiles[0];
+							const channelCount = getChannelCount(inputAudioFile);
+	
+							if (channelCount === 4) {
+							return '4_channel_pcm_to_wav';
+							} else if (channelCount === 6) {
+							return '6_channel_pcm_to_wav';
+							} else if (channelCount === 8) {
+							return '8_channel_pcm_to_wav';
+							} else if (channelCount === 9) {
+							return '9_channel_pcm_to_wav';
+							} else if (channelCount === 16) {
+							return '16_channel_pcm_to_wav';
+							} else {
+							console.error(`Unsupported number of channels: ${channelCount}`);
+							throw new Error(`Unsupported number of channels: ${channelCount}`);
+							}
+					  },
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
 						output_filename: 'MERGED.wav',
@@ -6228,7 +6246,25 @@ $(document).ready(async function() {
 					},
 					recipe: [
 					{
-						process_kind: '8_channel_pcm_to_wav',
+						process_kind: () => {
+							const inputAudioFile = window.inputAudioFiles[0];
+							const channelCount = getChannelCount(inputAudioFile);
+	
+							if (channelCount === 4) {
+							return '4_channel_pcm_to_wav';
+							} else if (channelCount === 6) {
+							return '6_channel_pcm_to_wav';
+							} else if (channelCount === 8) {
+							return '8_channel_pcm_to_wav';
+							} else if (channelCount === 9) {
+							return '9_channel_pcm_to_wav';
+							} else if (channelCount === 16) {
+							return '16_channel_pcm_to_wav';
+							} else {
+							console.error(`Unsupported number of channels: ${channelCount}`);
+							throw new Error(`Unsupported number of channels: ${channelCount}`);
+							}
+					  },
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
 						output_filename: 'MERGED.wav',
@@ -6251,7 +6287,25 @@ $(document).ready(async function() {
 					},
 					recipe: [
 					{
-						process_kind: '8_channel_pcm_to_wav',
+						process_kind: () => {
+							const inputAudioFile = window.inputAudioFiles[0];
+							const channelCount = getChannelCount(inputAudioFile);
+	
+							if (channelCount === 4) {
+							return '4_channel_pcm_to_wav';
+							} else if (channelCount === 6) {
+							return '6_channel_pcm_to_wav';
+							} else if (channelCount === 8) {
+							return '8_channel_pcm_to_wav';
+							} else if (channelCount === 9) {
+							return '9_channel_pcm_to_wav';
+							} else if (channelCount === 16) {
+							return '16_channel_pcm_to_wav';
+							} else {
+							console.error(`Unsupported number of channels: ${channelCount}`);
+							throw new Error(`Unsupported number of channels: ${channelCount}`);
+							}
+					  },
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
 						output_filename: 'MERGED.wav',
