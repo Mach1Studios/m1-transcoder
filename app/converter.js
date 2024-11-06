@@ -174,7 +174,69 @@ $(document).ready(async function() {
 		  }
 		}
 		throw new Error('No matching recipe found for the given variables.');
-	}	
+	}
+
+	function selectProcessKind(outputFileTypeKey, audioFilePath, hasStereoAudioFile) {
+		const channelCount = getChannelCount(audioFilePath);
+	
+		if (outputFileTypeKey === 'MP4' && hasStereoAudioFile) {
+			switch (channelCount) {
+				case 4:
+					return '4_channel_pcm_to_m4a_plus_stereo';
+				case 6:
+					return '6_channel_pcm_to_m4a_plus_stereo';
+				case 8:
+					return '8_channel_pcm_to_m4a_plus_stereo';
+				default:
+					throw new Error(`Unsupported number of channels: ${channelCount}`);
+			}
+		} else if (outputFileTypeKey === 'MP4') {
+			switch (channelCount) {
+				case 4:
+					return '4_channel_pcm_to_m4a';
+				case 6: 
+					return '6_channel_pcm_to_m4a'
+				case 8:
+					return '8_channel_pcm_to_m4a';
+				case 9:
+					return '9_channel_pcm_to_m4a'
+				case 12:
+					return '12_channel_pcm_to_m4a';
+				case 14:
+					return '14_channel_pcm_to_m4a';
+				default:
+					throw new Error(`Unsupported number of channels: ${channelCount}`);
+			}
+		} else if ((outputFileTypeKey === 'WAV' || outputFileTypeKey === 'MOV') && hasStereoAudioFile) {
+			switch (channelCount) {
+				case 4:
+					return '4_channel_pcm_to_wav_plus_stereo';
+				case 6:
+					return '6_channel_pcm_to_wav_plus_stereo';
+				case 8:
+					return '8_channel_pcm_to_wav_plus_stereo';
+				default:
+					throw new Error(`Unsupported number of channels: ${channelCount}`);
+			}
+		} else if (outputFileTypeKey === 'WAV' || outputFileTypeKey === 'MOV') {
+			switch (channelCount) {
+				case 4:
+					return '4_channel_pcm_to_wav';
+				case 6:
+					return '6_channel_pcm_to_wav';
+				case 8:
+					return '8_channel_pcm_to_wav_output';
+				case 9:
+					return '9_channel_pcm_to_wav';
+				case 16:
+					return '16_channel_pcm_to_wav';
+				default:
+					throw new Error(`Unsupported number of channels: ${channelCount}`);
+			}
+		}
+	
+		throw new Error(`Unsupported file type or channel configuration.`);
+	}
 
 	function checkSpatialAudioInput() {
 		const exec = require('child_process').execSync;
@@ -1108,23 +1170,7 @@ $(document).ready(async function() {
 					  output_video: 'muted-video.' + window.inputVideoExt,
 					},
 					{
-					  process_kind: () => {
-						const inputAudioFile = window.inputAudioFiles[0];
-						const channelCount = getChannelCount(inputAudioFile);
-
-						if (channelCount === 4) {
-						return '4_channel_pcm_to_m4a';
-						} else if (channelCount === 8) {
-						return '8_channel_pcm_to_m4a';
-						} else if (channelCount === 12) {
-						return '12_channel_pcm_to_m4a';
-						} else if (channelCount === 14) {
-						return '14_channel_pcm_to_m4a';
-						} else {
-						console.error(`Unsupported number of channels: ${channelCount}`);
-						throw new Error(`Unsupported number of channels: ${channelCount}`);
-						}
-					  },
+					  process_kind: () => selectProcessKind('MP4', window.inputAudioFiles[0], hasStereoAudioFile),
 					  input_filename: window.inputAudioFiles[0],
 					  output_filename: 'MERGED.m4a',
 					},
@@ -1152,7 +1198,7 @@ $(document).ready(async function() {
 					  output_video: 'muted-video.' + window.inputVideoExt,
 					},
 					{
-					  process_kind: '8_channel_pcm_to_m4a_plus_stereo',
+					  process_kind: () => selectProcessKind('MP4', window.inputAudioFiles[0], true),
 					  input_filename: 'inputspatialaudio.wav',
 					  stereo_filename: inputStaticStereoFilename,
 					  output_filename: 'MERGED.m4a',
@@ -1175,25 +1221,7 @@ $(document).ready(async function() {
 				  },
 				  recipe: [
 					{
-					  process_kind: () => {
-							const inputAudioFile = window.inputAudioFiles[0];
-							const channelCount = getChannelCount(inputAudioFile);
-	
-							if (channelCount === 4) {
-							return '4_channel_pcm_to_wav';
-							} else if (channelCount === 6) {
-							return '6_channel_pcm_to_wav';
-							} else if (channelCount === 8) {
-							return '8_channel_pcm_to_wav_output';
-							} else if (channelCount === 9) {
-							return '9_channel_pcm_to_wav';
-							} else if (channelCount === 16) {
-							return '16_channel_pcm_to_wav';
-							} else {
-							console.error(`Unsupported number of channels: ${channelCount}`);
-							throw new Error(`Unsupported number of channels: ${channelCount}`);
-							}
-					  },
+					  process_kind: () => selectProcessKind('WAV', window.inputAudioFiles[0], false),
 					  bitdepth: window.OutputBitDepthShort,
 					  input_filename: 'inputspatialaudio.wav',
 					  output_filename: outputVideoFilename,
@@ -1210,21 +1238,7 @@ $(document).ready(async function() {
 				  },
 				  recipe: [
 					{
-						process_kind: () => {
-							const inputAudioFile = window.inputAudioFiles[0];
-							const channelCount = getChannelCount(inputAudioFile);
-	
-							if (channelCount === 4) {
-							return '4_channel_pcm_to_wav_plus_stereo';
-							} else if (channelCount === 6) {
-							return '6_channel_pcm_to_wav_plus_stereo';
-							} else if (channelCount === 8) {
-							return '8_channel_pcm_to_wav_plus_stereo';
-							} else {
-							console.error(`Unsupported number of channels: ${channelCount}`);
-							throw new Error(`Unsupported number of channels: ${channelCount}`);
-							}
-					  },
+					  process_kind: () => selectProcessKind('WAV', window.inputAudioFiles[0], true),
 					  bitdepth: window.OutputBitDepthShort,
 					  input_filename: 'inputspatialaudio.wav',
 					  stereo_filename: inputStaticStereoFilename,
@@ -1248,25 +1262,7 @@ $(document).ready(async function() {
 					  output_video: 'muted-video.' + window.inputVideoExt,
 					},
 					{
-						process_kind: () => {
-							const inputAudioFile = window.inputAudioFiles[0];
-							const channelCount = getChannelCount(inputAudioFile);
-	
-							if (channelCount === 4) {
-							return '4_channel_pcm_to_wav';
-							} else if (channelCount === 6) {
-							return '6_channel_pcm_to_wav';
-							} else if (channelCount === 8) {
-							return '8_channel_pcm_to_wav';
-							} else if (channelCount === 9) {
-							return '9_channel_pcm_to_wav';
-							} else if (channelCount === 16) {
-							return '16_channel_pcm_to_wav';
-							} else {
-							console.error(`Unsupported number of channels: ${channelCount}`);
-							throw new Error(`Unsupported number of channels: ${channelCount}`);
-							}
-					  },
+				      process_kind: () => selectProcessKind('WAV', window.inputAudioFiles[0], false),
 					  bitdepth: window.OutputBitDepthShort,
 					  input_filename: 'inputspatialaudio.wav',
 					  output_filename: 'MERGED.wav',
@@ -1295,7 +1291,7 @@ $(document).ready(async function() {
 					  output_video: 'muted-video.' + window.inputVideoExt,
 					},
 					{
-					  process_kind: '8_channel_pcm_to_wav_plus_stereo',
+					  process_kind: () => selectProcessKind('WAV', window.inputAudioFiles[0], true),
 					  bitdepth: window.OutputBitDepthShort,
 					  input_filename: 'inputspatialaudio.wav',
 					  stereo_filename: inputStaticStereoFilename,
@@ -6205,25 +6201,7 @@ $(document).ready(async function() {
 					},
 					recipe: [
 					{
-						process_kind: () => {
-							const inputAudioFile = window.inputAudioFiles[0];
-							const channelCount = getChannelCount(inputAudioFile);
-	
-							if (channelCount === 4) {
-							return '4_channel_pcm_to_wav';
-							} else if (channelCount === 6) {
-							return '6_channel_pcm_to_wav';
-							} else if (channelCount === 8) {
-							return '8_channel_pcm_to_wav';
-							} else if (channelCount === 9) {
-							return '9_channel_pcm_to_wav';
-							} else if (channelCount === 16) {
-							return '16_channel_pcm_to_wav';
-							} else {
-							console.error(`Unsupported number of channels: ${channelCount}`);
-							throw new Error(`Unsupported number of channels: ${channelCount}`);
-							}
-					  },
+						process_kind: () => selectProcessKind('WAV', window.inputAudioFiles[0], false),
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
 						output_filename: 'MERGED.wav',
@@ -6246,25 +6224,7 @@ $(document).ready(async function() {
 					},
 					recipe: [
 					{
-						process_kind: () => {
-							const inputAudioFile = window.inputAudioFiles[0];
-							const channelCount = getChannelCount(inputAudioFile);
-	
-							if (channelCount === 4) {
-							return '4_channel_pcm_to_wav';
-							} else if (channelCount === 6) {
-							return '6_channel_pcm_to_wav';
-							} else if (channelCount === 8) {
-							return '8_channel_pcm_to_wav';
-							} else if (channelCount === 9) {
-							return '9_channel_pcm_to_wav';
-							} else if (channelCount === 16) {
-							return '16_channel_pcm_to_wav';
-							} else {
-							console.error(`Unsupported number of channels: ${channelCount}`);
-							throw new Error(`Unsupported number of channels: ${channelCount}`);
-							}
-					  },
+						process_kind: () => selectProcessKind('WAV', window.inputAudioFiles[0], false),
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
 						output_filename: 'MERGED.wav',
@@ -6287,25 +6247,7 @@ $(document).ready(async function() {
 					},
 					recipe: [
 					{
-						process_kind: () => {
-							const inputAudioFile = window.inputAudioFiles[0];
-							const channelCount = getChannelCount(inputAudioFile);
-	
-							if (channelCount === 4) {
-							return '4_channel_pcm_to_wav';
-							} else if (channelCount === 6) {
-							return '6_channel_pcm_to_wav';
-							} else if (channelCount === 8) {
-							return '8_channel_pcm_to_wav';
-							} else if (channelCount === 9) {
-							return '9_channel_pcm_to_wav';
-							} else if (channelCount === 16) {
-							return '16_channel_pcm_to_wav';
-							} else {
-							console.error(`Unsupported number of channels: ${channelCount}`);
-							throw new Error(`Unsupported number of channels: ${channelCount}`);
-							}
-					  },
+						process_kind: () => selectProcessKind('WAV', window.inputAudioFiles[0], false),
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
 						output_filename: 'MERGED.wav',
