@@ -6629,6 +6629,13 @@ $(document).ready(async function() {
 					processedStep[key] = step[key](); // Evaluate the function
 					} catch (error) {
 					console.error(`Error evaluating function for key '${key}':`, error);
+					// TODO: Display error to user!
+					// clear up
+					$('#Audio input[type="text"]').val("");
+					$('#StereoAudio input[type="text"]').val("");
+					$('#JsonInput input[type="text"]').val("");
+					$('#Video input[type="text"]').val("");
+					$('#OutputVideo input[type="text"]').val("");
 					throw error;
 					}
 				} else {
