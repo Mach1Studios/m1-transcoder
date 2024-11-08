@@ -163,7 +163,7 @@ $(document).ready(async function() {
 		  let match = true;
 		  for (const key in recipe.conditions) {
 			if (variables[key] !== recipe.conditions[key]) {
-			  log.info(`Condition mismatch on key '${key}': expected '${recipe.conditions[key]}', got '${variables[key]}'`);
+			  //log.info(`Condition mismatch on key '${key}': expected '${recipe.conditions[key]}', got '${variables[key]}'`);
 			  match = false;
 			  break;
 			}
@@ -173,7 +173,13 @@ $(document).ready(async function() {
 			return recipe.recipe;
 		  }
 		}
-		throw new Error('No matching recipe found for the given variables.');
+		// clear up
+		$('#Audio input[type="text"]').val("");
+		$('#StereoAudio input[type="text"]').val("");
+		$('#JsonInput input[type="text"]').val("");
+		$('#Video input[type="text"]').val("");
+		$('#OutputVideo input[type="text"]').val("");
+		throw new Error('No matching transcode recipe found or defined for the given variables.');
 	}
 
 	function selectProcessKind(outputFileTypeKey, audioFilePath, hasStereoAudioFile) {
@@ -6646,23 +6652,31 @@ $(document).ready(async function() {
 					$('#OutputVideo input[type="text"]').val("");
 					ShowMessage("Rendered successfully!");
 				} else {
+					// clear up
+					$('#Audio input[type="text"]').val("");
+					$('#StereoAudio input[type="text"]').val("");
+					$('#JsonInput input[type="text"]').val("");
+					$('#Video input[type="text"]').val("");
+					$('#OutputVideo input[type="text"]').val("");
 					ShowMessage("Error: Please submit log.log file.", true);
 				}
 				HideProgressbar();
 				log.info('Render Complete: ' + new Date);
 			  } catch (error) {
+				// clear up
+				$('#Audio input[type="text"]').val("");
+				$('#StereoAudio input[type="text"]').val("");
+				$('#JsonInput input[type="text"]').val("");
+				$('#Video input[type="text"]').val("");
+				$('#OutputVideo input[type="text"]').val("");
 				console.error('An error occurred:', error);
 			  }
 			})();
 		};
 
 		var outputVideoInput = $('#OutputVideo input[type="text"]');
-		if (!outputVideoInput.val()) {
-			SaveFile(outputVideoInput).done(function() {
-				runTranscode();
-			});
-		} else {
+		SaveFile(outputVideoInput).done(function() {
 			runTranscode();
-		}
+		});
 	});
 });
