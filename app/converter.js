@@ -849,12 +849,10 @@ $(document).ready(async function() {
 
 			var inputVideoFilename = $('#Video input[type="text"]').val();
 			var outputVideoFilename = $('#OutputVideo input[type="text"]').val();
-			var inputStaticStereoFilename = $('#StereoAudio input[type="text"]').val();
 			var inputJsonFilename = $('#JsonInput input[type="text"]').val();
 
 			if (typeof inputVideoFilename == 'undefined') inputVideoFilename = "";
 			if (typeof outputVideoFilename == 'undefined') outputVideoFilename = "";
-			if (typeof inputStaticStereoFilename == 'undefined') inputStaticStereoFilename = "";
 			if (typeof inputJsonFilename == 'undefined') inputJsonFilename = "";
 
 			log.info("Input Spatial Audio: " + $('#Audio input[type="text"]').val());
@@ -1131,7 +1129,7 @@ $(document).ready(async function() {
 					{
 					  process_kind: '8_channel_pcm_to_m4a_plus_stereo',
 					  input_filename: 'inputspatialaudio.wav',
-					  stereo_filename: inputStaticStereoFilename,
+					  stereo_filename: window.inputStereoFiles[0],
 					  output_filename: outputVideoFilename,
 					},
 				  ],
@@ -1155,7 +1153,7 @@ $(document).ready(async function() {
 					{
 					  process_kind: '8_channel_pcm_to_m4a_plus_stereo',
 					  input_filename: 'reordered.aif',
-					  stereo_filename: inputStaticStereoFilename,
+					  stereo_filename: window.inputStereoFiles[0],
 					  output_filename: outputVideoFilename,
 					},
 				  ],
@@ -1206,7 +1204,7 @@ $(document).ready(async function() {
 					{
 					  process_kind: () => selectProcessKind('MP4', window.inputAudioFiles[0], true),
 					  input_filename: 'inputspatialaudio.wav',
-					  stereo_filename: inputStaticStereoFilename,
+					  stereo_filename: window.inputStereoFiles[0],
 					  output_filename: 'MERGED.m4a',
 					},
 					{
@@ -1247,7 +1245,7 @@ $(document).ready(async function() {
 					  process_kind: () => selectProcessKind('WAV', window.inputAudioFiles[0], true),
 					  bitdepth: window.OutputBitDepthShort,
 					  input_filename: 'inputspatialaudio.wav',
-					  stereo_filename: inputStaticStereoFilename,
+					  stereo_filename: window.inputStereoFiles[0],
 					  output_filename: outputVideoFilename,
 					},
 				  ],
@@ -1300,7 +1298,7 @@ $(document).ready(async function() {
 					  process_kind: () => selectProcessKind('WAV', window.inputAudioFiles[0], true),
 					  bitdepth: window.OutputBitDepthShort,
 					  input_filename: 'inputspatialaudio.wav',
-					  stereo_filename: inputStaticStereoFilename,
+					  stereo_filename: window.inputStereoFiles[0],
 					  output_filename: 'MERGED.wav',
 					},
 					{
@@ -1337,7 +1335,7 @@ $(document).ready(async function() {
 					  {
 						process_kind: '8_channel_pcm_to_ogg_plus_stereo',
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: outputVideoFilename,
 					  },
 					],
@@ -1368,7 +1366,7 @@ $(document).ready(async function() {
 					  {
 						process_kind: '8_channel_pcm_to_ogg_plus_stereo',
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: outputVideoFilename,
 					  },
 					],
@@ -1431,7 +1429,7 @@ $(document).ready(async function() {
 					{
 						process_kind: '4_channel_pcm_to_m4a_plus_stereo',
 						input_filename: 'MERGED.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: outputVideoFilename,
 					},
 					],
@@ -1493,7 +1491,7 @@ $(document).ready(async function() {
 					{
 						process_kind: '4_channel_pcm_to_ogg_plus_stereo',
 						input_filename: 'MERGED.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: outputVideoFilename,
 					},
 					],
@@ -1551,7 +1549,7 @@ $(document).ready(async function() {
 						process_kind: '4_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'MERGED.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: outputVideoFilename,
 					},
 					],
@@ -1631,7 +1629,7 @@ $(document).ready(async function() {
 					{
 						process_kind: '4_channel_pcm_to_m4a_plus_stereo',
 						input_filename: 'MERGED.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'output_audio.m4a',
 					},
 					{
@@ -1713,7 +1711,7 @@ $(document).ready(async function() {
 						process_kind: '4_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'MERGED.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'output_audio.wav',
 					},
 					{
@@ -1769,7 +1767,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -1832,7 +1830,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -1890,7 +1888,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -1966,7 +1964,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -2054,7 +2052,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -2134,7 +2132,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -2211,7 +2209,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -2305,7 +2303,7 @@ $(document).ready(async function() {
 					{
 						process_kind: '4_channel_pcm_to_m4a_plus_stereo',
 						input_filename: 'output_audio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: outputVideoFilename,
 					},
 					],
@@ -2384,7 +2382,7 @@ $(document).ready(async function() {
 					{
 						process_kind: '4_channel_pcm_to_ogg_plus_stereo',
 						input_filename: 'output_audio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: outputVideoFilename,
 					},
 					],
@@ -2446,7 +2444,7 @@ $(document).ready(async function() {
 						process_kind: '4_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'output_audio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: outputVideoFilename,
 					},
 					],
@@ -2532,6 +2530,7 @@ $(document).ready(async function() {
 					{
 						process_kind: '4_channel_pcm_to_m4a_plus_stereo',
 						input_filename: 'output_audio.wav',
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.m4a',
 					},
 					{
@@ -2623,6 +2622,7 @@ $(document).ready(async function() {
 					{
 						process_kind: '4_channel_pcm_to_m4a_plus_stereo',
 						input_filename: 'output_audio.wav',
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.m4a',
 					},
 					{
@@ -2707,7 +2707,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -2722,7 +2722,7 @@ $(document).ready(async function() {
 					{
 						process_kind: '4_channel_pcm_to_m4a',
 						input_filename: 'output_audio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.m4a',
 					},
 					{
@@ -2814,7 +2814,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -2920,7 +2920,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -3021,7 +3021,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -3124,7 +3124,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -3227,7 +3227,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -3337,7 +3337,7 @@ $(document).ready(async function() {
 					{
 						process_kind: '4_channel_pcm_to_m4a_plus_stereo',
 						input_filename: 'output_audio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: outputVideoFilename,
 					},
 					],
@@ -3418,7 +3418,7 @@ $(document).ready(async function() {
 					{
 						process_kind: '4_channel_pcm_to_ogg_plus_stereo',
 						input_filename: 'output_audio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: outputVideoFilename,
 					},
 					],
@@ -3495,7 +3495,7 @@ $(document).ready(async function() {
 						process_kind: '4_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'output_audio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: outputVideoFilename,
 					},
 					],
@@ -3592,7 +3592,7 @@ $(document).ready(async function() {
 					{
 						process_kind: '4_channel_pcm_to_m4a_plus_stereo',
 						input_filename: 'output_audio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.m4a',
 					},
 					{
@@ -3677,7 +3677,7 @@ $(document).ready(async function() {
 						process_kind: '4_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'output_audio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -4029,7 +4029,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -4096,7 +4096,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -4158,7 +4158,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -4231,7 +4231,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -4310,7 +4310,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -4380,7 +4380,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -4447,7 +4447,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -4509,7 +4509,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -4582,7 +4582,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -4661,7 +4661,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -4730,7 +4730,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -4797,7 +4797,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -4859,7 +4859,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -4932,7 +4932,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -5011,7 +5011,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -5076,7 +5076,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -5139,7 +5139,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -5206,7 +5206,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -5268,7 +5268,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -5346,7 +5346,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -5435,7 +5435,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -5505,7 +5505,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -5569,7 +5569,7 @@ $(document).ready(async function() {
 					{
 						process_kind: 'TBE_copy_to_dir_plus_stereo',
 						output_filename: outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf('.')),
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 					},
 					],
 				},
@@ -5827,7 +5827,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -5886,7 +5886,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -5945,7 +5945,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -6004,7 +6004,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -6062,7 +6062,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -6121,7 +6121,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -6180,7 +6180,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -6309,7 +6309,7 @@ $(document).ready(async function() {
 					{
 						process_kind: 'spatial_to_samsungvr_plus_stereo',
 						input_filename: 'MERGED.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						input_video: inputVideoFilename,
 						output_video: outputVideoFilename,
 					},
@@ -6358,7 +6358,7 @@ $(document).ready(async function() {
 					{
 						process_kind: 'spatial_to_samsungvr_plus_stereo',
 						input_filename: 'MERGED.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						input_video: inputVideoFilename,
 						output_video: outputVideoFilename,
 					},
@@ -6430,7 +6430,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -6504,7 +6504,7 @@ $(document).ready(async function() {
 						process_kind: '8_channel_pcm_to_wav_plus_stereo',
 						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						stereo_filename: inputStaticStereoFilename,
+						stereo_filename: window.inputStereoFiles[0],
 						output_filename: 'MERGED.wav',
 					},
 					{
@@ -6596,7 +6596,7 @@ $(document).ready(async function() {
 			// Set recipe selection variables
 			let inputAudioFilesLength = window.inputAudioFiles.length;
 			let hasVideoFile = !!inputVideoFilename;
-			let hasStereoAudioFile = !!inputStaticStereoFilename;
+			let hasStereoAudioFile = !!window.inputStereoFiles[0];
 			let isFromProTools = window.fromProToolsNeedsChannelReOrdering || false;
 
 			if (outputFileTypeKey === 'WAV' || outputFileTypeKey === 'M4A') {
