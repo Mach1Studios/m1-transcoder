@@ -205,7 +205,7 @@ function runProcess(processData) {
 				ffmpeg, ' -y -i 000.wav -i 001.wav -i 002.wav -i 003.wav -filter_complex "[0:a][1:a][2:a][3:a]amerge=inputs=4[aout]" -map "[aout]" MERGED.wav',
 				"&&",
 				//TODO: figure out if -channel_layout quad is needed??!
-				ffmpeg, " -y -i MERGED.wav -metadata comment='mach1horizon-4' -c:a aac -b:a 512k", processData["output_filename"]
+				ffmpeg, " -y -i MERGED.wav -metadata comment='mach1spatial-4' -c:a aac -b:a 512k", processData["output_filename"]
 			];
 			var callString = call.join(' ');
 
@@ -274,7 +274,7 @@ function runProcess(processData) {
 
 			var call = ["cd ", tempDir,
 				"&&",
-				ffmpeg, " -y -i MERGED.wav -metadata spatial-audio='mach1horizon-4' -c:a libopus -mapping_family:a 255 -application:a audio -b:a 192K ", processData["output_filename"]
+				ffmpeg, " -y -i MERGED.wav -metadata spatial-audio='mach1spatial-4' -c:a libopus -mapping_family:a 255 -application:a audio -b:a 192K ", processData["output_filename"]
 			];
 			var callString = call.join(' ');
 
@@ -343,7 +343,7 @@ function runProcess(processData) {
 
 			var call = ["cd ", tempDir,
 				"&&",
-				ffmpeg, " -y -i MERGED.wav -metadata spatial-audio='mach1horizon-4' -c:a libvorbis -q:a 10 ", processData["output_filename"]
+				ffmpeg, " -y -i MERGED.wav -metadata spatial-audio='mach1spatial-4' -c:a libvorbis -q:a 10 ", processData["output_filename"]
 			];
 			var callString = call.join(' ');
 
@@ -428,7 +428,7 @@ function runProcess(processData) {
 				"&&",
 				ffmpeg, " -y -i ", processData["input_filename"], " -map_channel 0.0.0", " -c:a ", processData["bitdepth"] + "le 000.wav -map_channel 0.0.1", " -c:a ", processData["bitdepth"] + "le 001.wav -map_channel 0.0.2", " -c:a ", processData["bitdepth"] + "le 002.wav -map_channel 0.0.3", " -c:a ", processData["bitdepth"] + "le 003.wav",
 				"&&",
-				ffmpeg, ' -y -i 000.wav -i 001.wav -i 002.wav -i 003.wav -filter_complex "[0:a][1:a][2:a][3:a]amerge=inputs=4[aout]" -map "[aout]" -metadata ICMT="mach1horizon-4" -c:a ' + processData["bitdepth"] + 'le MERGED.wav'
+				ffmpeg, ' -y -i 000.wav -i 001.wav -i 002.wav -i 003.wav -filter_complex "[0:a][1:a][2:a][3:a]amerge=inputs=4[aout]" -map "[aout]" -metadata ICMT="mach1spatial-4" -c:a ' + processData["bitdepth"] + 'le MERGED.wav'
 			];
 			var callString = call.join(' ');
 
@@ -444,9 +444,9 @@ function runProcess(processData) {
 				"&&",
 				ffmpeg, " -y -i ", processData["input_filename"], " -map_channel 0.0.0 000.wav -map_channel 0.0.1 001.wav -map_channel 0.0.2 002.wav -map_channel 0.0.3 003.wav -map_channel 0.0.4 004.wav -map_channel 0.0.5 005.wav -map_channel 0.0.6 006.wav -map_channel 0.0.7 007.wav",
 				"&&",
-				ffmpeg, " -y -i ", processData["stereo_filename"], " -map_channel 0.0.0 008.wav -map_channel 0.0.1 009.wav",
+				ffmpeg, " -y -i ", processData["stereo_filename"], " -map_channel 0.0.0 st_l.wav -map_channel 0.0.1 st_r.wav",
 				"&&",
-				ffmpeg, ' -y -i 000.wav -i 001.wav -i 002.wav -i 003.wav -i 004.wav -i 005.wav -i 006.wav -i 007.wav -i 008.wav -i 009.wav -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a][8:a][9:a]amerge=inputs=10[aout]" -map "[aout]" MERGED.wav',
+				ffmpeg, ' -y -i 000.wav -i 001.wav -i 002.wav -i 003.wav -i 004.wav -i 005.wav -i 006.wav -i 007.wav -i st_l.wav -i st_r.wav -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a][8:a][9:a]amerge=inputs=10[aout]" -map "[aout]" MERGED.wav',
 				"&&",
 				//TODO: check this channel order
 				ffmpeg, " -y -i MERGED.wav -metadata comment='mach1spatial-8' -c:a aac -b:a 640k -q:a 10 ", processData["output_filename"]
@@ -463,9 +463,9 @@ function runProcess(processData) {
 				"&&",
 				ffmpeg, " -y -i ", processData["input_filename"], " -map_channel 0.0.0 000.wav -map_channel 0.0.1 001.wav -map_channel 0.0.2 002.wav -map_channel 0.0.3 003.wav -map_channel 0.0.4 004.wav -map_channel 0.0.5 005.wav",
 				"&&",
-				ffmpeg, " -y -i ", processData["stereo_filename"], " -map_channel 0.0.0 008.wav -map_channel 0.0.1 009.wav",
+				ffmpeg, " -y -i ", processData["stereo_filename"], " -map_channel 0.0.0 st_l.wav -map_channel 0.0.1 st_r.wav",
 				"&&",
-				ffmpeg, ' -y -i 000.wav -i 001.wav -i 002.wav -i 003.wav -i 004.wav -i 005.wav -i 008.wav -i 009.wav -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a]amerge=inputs=8[aout]" -map "[aout]" MERGED.wav',
+				ffmpeg, ' -y -i 000.wav -i 001.wav -i 002.wav -i 003.wav -i 004.wav -i 005.wav -i st_l.wav -i st_r.wav -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a]amerge=inputs=8[aout]" -map "[aout]" MERGED.wav',
 				"&&",
 				//TODO: check this channel order
 				ffmpeg, " -y -i MERGED.wav -c:a aac -b:a 640k -q:a 10 ", processData["output_filename"]
@@ -482,12 +482,12 @@ function runProcess(processData) {
 				"&&",
 				ffmpeg, " -y -i ", processData["input_filename"], " -map_channel 0.0.0 000.wav -map_channel 0.0.1 001.wav -map_channel 0.0.2 002.wav -map_channel 0.0.3 003.wav",
 				"&&",
-				ffmpeg, " -y -i ", processData["stereo_filename"], " -map_channel 0.0.0 008.wav -map_channel 0.0.1 009.wav",
+				ffmpeg, " -y -i ", processData["stereo_filename"], " -map_channel 0.0.0 st_l.wav -map_channel 0.0.1 st_r.wav",
 				"&&",
-				ffmpeg, ' -y -i 001.wav -i 002.wav -i 000.wav -i 009.wav -i 003.wav -i 008.wav -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a]amerge=inputs=6[aout]" -map "[aout]" MERGED.wav',
+				ffmpeg, ' -y -i 001.wav -i 002.wav -i 000.wav -i st_r.wav -i 003.wav -i st_l.wav -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a]amerge=inputs=6[aout]" -map "[aout]" MERGED.wav',
 				"&&",
 				//TODO: check this channel order
-				ffmpeg, " -y -i MERGED.wav -metadata comment='mach1horizon-4' -c:a aac -b:a 640k -q:a 10 ", processData["output_filename"]
+				ffmpeg, " -y -i MERGED.wav -metadata comment='mach1spatial-4' -c:a aac -b:a 640k -q:a 10 ", processData["output_filename"]
 			];
 			var callString = call.join(' ');
 
@@ -503,9 +503,9 @@ function runProcess(processData) {
 				"&&",
 				ffmpeg, " -y -i ", processData["input_filename"], " -map_channel 0.0.0 000.wav -map_channel 0.0.1 001.wav -map_channel 0.0.2 002.wav -map_channel 0.0.3 003.wav -map_channel 0.0.4 004.wav -map_channel 0.0.5 005.wav -map_channel 0.0.6 006.wav -map_channel 0.0.7 007.wav",
 				"&&",
-				ffmpeg, " -y -i ", processData["stereo_filename"], " -map_channel 0.0.0 008.wav -map_channel 0.0.1 009.wav",
+				ffmpeg, " -y -i ", processData["stereo_filename"], " -map_channel 0.0.0 st_l.wav -map_channel 0.0.1 st_r.wav",
 				"&&",
-				ffmpeg, ' -y -i 000.wav -i 001.wav -i 002.wav -i 003.wav -i 004.wav -i 005.wav -i 006.wav -i 007.wav -i 008.wav -i 009.wav -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a][8:a][9:a]amerge=inputs=10[aout]" -map "[aout]" MERGED.wav',
+				ffmpeg, ' -y -i 000.wav -i 001.wav -i 002.wav -i 003.wav -i 004.wav -i 005.wav -i 006.wav -i 007.wav -i st_l.wav -i st_r.wav -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a][8:a][9:a]amerge=inputs=10[aout]" -map "[aout]" MERGED.wav',
 				"&&",
 				//TODO: check this channel order
 				ffmpeg, " -y -i MERGED.wav -metadata spatial-audio='mach1spatial-8' -c:a libvorbis -q:a 10 ", processData["output_filename"]
@@ -522,9 +522,9 @@ function runProcess(processData) {
 				"&&",
 				ffmpeg, " -y -i ", processData["input_filename"], " -map_channel 0.0.0 000.wav -map_channel 0.0.1 001.wav -map_channel 0.0.2 002.wav -map_channel 0.0.3 003.wav -map_channel 0.0.4 004.wav -map_channel 0.0.5 005.wav",
 				"&&",
-				ffmpeg, " -y -i ", processData["stereo_filename"], " -map_channel 0.0.0 008.wav -map_channel 0.0.1 009.wav",
+				ffmpeg, " -y -i ", processData["stereo_filename"], " -map_channel 0.0.0 st_l.wav -map_channel 0.0.1 st_r.wav",
 				"&&",
-				ffmpeg, ' -y -i 000.wav -i 001.wav -i 002.wav -i 003.wav -i 004.wav -i 005.wav -i 008.wav -i 009.wav -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a]amerge=inputs=8[aout]" -map "[aout]" MERGED.wav',
+				ffmpeg, ' -y -i 000.wav -i 001.wav -i 002.wav -i 003.wav -i 004.wav -i 005.wav -i st_l.wav -i st_r.wav -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a]amerge=inputs=8[aout]" -map "[aout]" MERGED.wav',
 				"&&",
 				//TODO: check this channel order
 				ffmpeg, " -y -i MERGED.wav -c:a libvorbis -q:a 10 ", processData["output_filename"]
@@ -541,12 +541,12 @@ function runProcess(processData) {
 				"&&",
 				ffmpeg, " -y -i ", processData["input_filename"], " -map_channel 0.0.0 000.wav -map_channel 0.0.1 001.wav -map_channel 0.0.2 002.wav -map_channel 0.0.3 003.wav",
 				"&&",
-				ffmpeg, " -y -i ", processData["stereo_filename"], " -map_channel 0.0.0 008.wav -map_channel 0.0.1 009.wav",
+				ffmpeg, " -y -i ", processData["stereo_filename"], " -map_channel 0.0.0 st_l.wav -map_channel 0.0.1 st_r.wav",
 				"&&",
-				ffmpeg, ' -y -i 001.wav -i 002.wav -i 000.wav -i 009.wav -i 003.wav -i 008.wav -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a]amerge=inputs=6[aout]" -map "[aout]" MERGED.wav',
+				ffmpeg, ' -y -i 001.wav -i 002.wav -i 000.wav -i st_r.wav -i 003.wav -i st_l.wav -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a]amerge=inputs=6[aout]" -map "[aout]" MERGED.wav',
 				"&&",
 				//TODO: check this channel order
-				ffmpeg, " -y -i MERGED.wav -metadata spatial-audio='mach1horizon-4' -c:a libvorbis -q:a 10 ", processData["output_filename"]
+				ffmpeg, " -y -i MERGED.wav -metadata spatial-audio='mach1spatial-4' -c:a libvorbis -q:a 10 ", processData["output_filename"]
 			];
 			var callString = call.join(' ');
 
@@ -562,9 +562,9 @@ function runProcess(processData) {
 				"&&",
 				ffmpeg, " -y -i ", processData["input_filename"], " -map_channel 0.0.0", " -c:a ", processData["bitdepth"] + "le 000.wav -map_channel 0.0.1", " -c:a ", processData["bitdepth"] + "le 001.wav -map_channel 0.0.2", " -c:a ", processData["bitdepth"] + "le 002.wav -map_channel 0.0.3", " -c:a ", processData["bitdepth"] + "le 003.wav -map_channel 0.0.4", " -c:a ", processData["bitdepth"] + "le 004.wav -map_channel 0.0.5", " -c:a ", processData["bitdepth"] + "le 005.wav -map_channel 0.0.6", " -c:a ", processData["bitdepth"] + "le 006.wav -map_channel 0.0.7", " -c:a ", processData["bitdepth"] + "le 007.wav",
 				"&&",
-				ffmpeg, " -y -i ", processData["stereo_filename"], " -map_channel 0.0.0", " -c:a ", processData["bitdepth"] + "le 008.wav -map_channel 0.0.1", " -c:a ", processData["bitdepth"] + "le 009.wav",
+				ffmpeg, " -y -i ", processData["stereo_filename"], " -map_channel 0.0.0", " -c:a ", processData["bitdepth"] + "le st_l.wav -map_channel 0.0.1", " -c:a ", processData["bitdepth"] + "le st_r.wav",
 				"&&",
-				ffmpeg, ' -y -i 000.wav -i 001.wav -i 002.wav -i 003.wav -i 004.wav -i 005.wav -i 006.wav -i 007.wav -i 008.wav -i 009.wav -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a][8:a][9:a]amerge=inputs=10[aout]" -map "[aout]" -metadata ICMT="mach1spatial-8" -c:a ' + processData["bitdepth"] + 'le ' + processData["output_filename"]
+				ffmpeg, ' -y -i 000.wav -i 001.wav -i 002.wav -i 003.wav -i 004.wav -i 005.wav -i 006.wav -i 007.wav -i st_l.wav -i st_r.wav -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a][8:a][9:a]amerge=inputs=10[aout]" -map "[aout]" -metadata ICMT="mach1spatial-8" -c:a ' + processData["bitdepth"] + 'le ' + processData["output_filename"]
 			];
 			var callString = call.join(' ');
 
@@ -578,9 +578,9 @@ function runProcess(processData) {
 				"&&",
 				ffmpeg, " -y -i ", processData["input_filename"], " -map_channel 0.0.0", " -c:a ", processData["bitdepth"] + "le 000.wav -map_channel 0.0.1", " -c:a ", processData["bitdepth"] + "le 001.wav -map_channel 0.0.2", " -c:a ", processData["bitdepth"] + "le 002.wav -map_channel 0.0.3", " -c:a ", processData["bitdepth"] + "le 003.wav -map_channel 0.0.4", " -c:a ", processData["bitdepth"] + "le 004.wav -map_channel 0.0.5", " -c:a ", processData["bitdepth"] + "le 005.wav",
 				"&&",
-				ffmpeg, " -y -i ", processData["stereo_filename"], " -map_channel 0.0.0", " -c:a ", processData["bitdepth"] + "le 008.wav -map_channel 0.0.1", " -c:a ", processData["bitdepth"] + "le 009.wav",
+				ffmpeg, " -y -i ", processData["stereo_filename"], " -map_channel 0.0.0", " -c:a ", processData["bitdepth"] + "le st_l.wav -map_channel 0.0.1", " -c:a ", processData["bitdepth"] + "le st_r.wav",
 				"&&",
-				ffmpeg, ' -y -i 000.wav -i 001.wav -i 002.wav -i 003.wav -i 004.wav -i 005.wav -i 008.wav -i 009.wav -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a]amerge=inputs=8[aout]" -map "[aout]" ', processData["output_filename"]
+				ffmpeg, ' -y -i 000.wav -i 001.wav -i 002.wav -i 003.wav -i 004.wav -i 005.wav -i st_l.wav -i st_r.wav -filter_complex "[0:a][1:a][2:a][3:a][4:a][5:a][6:a][7:a]amerge=inputs=8[aout]" -map "[aout]" ', processData["output_filename"]
 			];
 			var callString = call.join(' ');
 
@@ -594,9 +594,9 @@ function runProcess(processData) {
 				"&&",
 				ffmpeg, " -y -i ", processData["input_filename"], " -map_channel 0.0.0", " -c:a ", processData["bitdepth"] + "le 000.wav -map_channel 0.0.1", " -c:a ", processData["bitdepth"] + "le 001.wav -map_channel 0.0.2", " -c:a ", processData["bitdepth"] + "le 002.wav -map_channel 0.0.3", " -c:a ", processData["bitdepth"] + "le 003.wav",
 				"&&",
-				ffmpeg, " -y -i ", processData["stereo_filename"], " -map_channel 0.0.0", " -c:a ", processData["bitdepth"] + "le 008.wav -map_channel 0.0.1", " -c:a ", processData["bitdepth"] + "le 009.wav",
+				ffmpeg, " -y -i ", processData["stereo_filename"], " -map_channel 0.0.0", " -c:a ", processData["bitdepth"] + "le st_l.wav -map_channel 0.0.1", " -c:a ", processData["bitdepth"] + "le st_r.wav",
 				"&&",
-				ffmpeg, ' -y -i 000.wav -i 001.wav -i 002.wav -i 003.wav -i 008.wav -i 009.wav -filter_complex "[0:a][1:a][2:a][3:a][8:a][9:a]amerge=inputs=6[aout]" -map "[aout]" -metadata ICMT="mach1horizon-4" -c:a ' + processData["bitdepth"] + 'le ' + processData["output_filename"]
+				ffmpeg, ' -y -i 000.wav -i 001.wav -i 002.wav -i 003.wav -i st_l.wav -i st_r.wav -filter_complex "[0:a][1:a][2:a][3:a][8:a][9:a]amerge=inputs=6[aout]" -map "[aout]" -metadata ICMT="mach1spatial-4" -c:a ' + processData["bitdepth"] + 'le ' + processData["output_filename"]
 			];
 			var callString = call.join(' ');
 
