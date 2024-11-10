@@ -720,76 +720,59 @@ function runProcess(processData) {
 			break;
 
 		case "copy_to_output_dir_wav":
-			log.info(" executing " + processData["process_kind"]);
-			var call = ["cd ", tempDir,
-				"&&",
-				"mv 000.wav ", escapingPath(processData["output_dir"] + "000.wav"),
-				"&&",
-				"mv 001.wav ", escapingPath(processData["output_dir"] + "001.wav"),
-				"&&",
-				"mv 002.wav ", escapingPath(processData["output_dir"] + "002.wav"),
-				"&&",
-				"mv 003.wav ", escapingPath(processData["output_dir"] + "003.wav"),
-				"&&",
-				"mv 004.wav ", escapingPath(processData["output_dir"] + "004.wav"),
-				"&&",
-				"mv 005.wav ", escapingPath(processData["output_dir"] + "005.wav"),
-				"&&",
-				"mv 006.wav ", escapingPath(processData["output_dir"] + "006.wav"),
-				"&&",
-				"mv 007.wav ", escapingPath(processData["output_dir"] + "007.wav")
-			];
-			var callString = call.join(' ');
-			return runExec(callString);
-			break;
+    		log.info(" executing " + processData["process_kind"]);
+    		var call = ["cd", tempDir, "&&"];
+
+    		for (var i = 0; i < processData["channel_count"]; i++) {
+      		    var fileName = i.toString().padStart(3, '0') + ".wav";
+    		    call.push("mv", fileName, escapingPath(processData["output_dir"] + fileName), "&&");
+    		}
+    
+    		call.pop();
+
+    		var callString = call.join(' ');
+    		return runExec(callString);
+    		break;
+
 
 		case "copy_to_output_dir_m4a":
 			log.info(" executing " + processData["process_kind"]);
-			var call = ["cd ", tempDir,
-				"&&",
-				ffmpeg, "-i 000.wav -c:a aac -b:a 128k -q:a 10 ", escapingPath(processData["output_dir"] + "000.m4a"),
-				"&&",
-				ffmpeg, "-i 001.wav -c:a aac -b:a 128k -q:a 10 ", escapingPath(processData["output_dir"] + "001.m4a"),
-				"&&",
-				ffmpeg, "-i 002.wav -c:a aac -b:a 128k -q:a 10 ", escapingPath(processData["output_dir"] + "002.m4a"),
-				"&&",
-				ffmpeg, "-i 003.wav -c:a aac -b:a 128k -q:a 10 ", escapingPath(processData["output_dir"] + "003.m4a"),
-				"&&",
-				ffmpeg, "-i 004.wav -c:a aac -b:a 128k -q:a 10 ", escapingPath(processData["output_dir"] + "004.m4a"),
-				"&&",
-				ffmpeg, "-i 005.wav -c:a aac -b:a 128k -q:a 10 ", escapingPath(processData["output_dir"] + "005.m4a"),
-				"&&",
-				ffmpeg, "-i 006.wav -c:a aac -b:a 128k -q:a 10 ", escapingPath(processData["output_dir"] + "006.m4a"),
-				"&&",
-				ffmpeg, "-i 007.wav -c:a aac -b:a 128k -q:a 10 ", escapingPath(processData["output_dir"] + "007.m4a")
-			];
+			var call = ["cd", tempDir, "&&"];
+			
+			for (var i = 0; i < processData["channel_count"]; i++) {
+				var fileName = i.toString().padStart(3, '0');
+				call.push(
+					ffmpeg, "-i", fileName + ".wav", "-c:a aac -b:a 128k -q:a 10", 
+					escapingPath(processData["output_dir"] + fileName + ".m4a"), 
+					"&&"
+				);
+			}
+			
+			call.pop();
+			
 			var callString = call.join(' ');
 			return runExec(callString);
 			break;
-
+			
 		case "copy_to_output_dir_ogg":
 			log.info(" executing " + processData["process_kind"]);
-			var call = ["cd ", tempDir,
-				"&&",
-				ffmpeg, "-i 000.wav -c:a libvorbis -q:a 10 ", escapingPath(processData["output_dir"] + "000.ogg"),
-				"&&",
-				ffmpeg, "-i 001.wav -c:a libvorbis -q:a 10 ", escapingPath(processData["output_dir"] + "001.ogg"),
-				"&&",
-				ffmpeg, "-i 002.wav -c:a libvorbis -q:a 10 ", escapingPath(processData["output_dir"] + "002.ogg"),
-				"&&",
-				ffmpeg, "-i 003.wav -c:a libvorbis -q:a 10 ", escapingPath(processData["output_dir"] + "003.ogg"),
-				"&&",
-				ffmpeg, "-i 004.wav -c:a libvorbis -q:a 10 ", escapingPath(processData["output_dir"] + "004.ogg"),
-				"&&",
-				ffmpeg, "-i 005.wav -c:a libvorbis -q:a 10 ", escapingPath(processData["output_dir"] + "005.ogg"),
-				"&&",
-				ffmpeg, "-i 006.wav -c:a libvorbis -q:a 10 ", escapingPath(processData["output_dir"] + "006.ogg"),
-				"&&",
-				ffmpeg, "-i 007.wav -c:a libvorbis -q:a 10 ", escapingPath(processData["output_dir"] + "007.ogg")
-			];
+			var call = ["cd", tempDir, "&&"];
+			
+			for (var i = 0; i < processData["channel_count"]; i++) {
+				var fileName = i.toString().padStart(3, '0');
+				call.push(
+					ffmpeg, "-i", fileName + ".wav", "-c:a libvorbis -q:a 10", 
+					escapingPath(processData["output_dir"] + fileName + ".ogg"), 
+					"&&"
+				);
+			}
+			
+			call.pop();
+			
 			var callString = call.join(' ');
 			return runExec(callString);
 			break;
+			
 
 		case "8_channel_ProToolsWav_to_pcm":
 			log.info(" executing " + processData["process_kind"]);

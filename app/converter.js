@@ -6215,6 +6215,7 @@ $(document).ready(async function() {
 					{
 						process_kind: 'copy_to_output_dir_m4a',
 						output_dir: outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf('/')) + '/',
+						channel_count: getChannelCount(window.inputAudioFiles[0]),
 					},
 					],
 				},
@@ -6238,6 +6239,7 @@ $(document).ready(async function() {
 					{
 						process_kind: 'copy_to_output_dir_ogg',
 						output_dir: outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf('/')) + '/',
+						channel_count: getChannelCount(window.inputAudioFiles[0]),
 					},
 					],
 				},
@@ -6261,6 +6263,7 @@ $(document).ready(async function() {
 					{
 						process_kind: 'copy_to_output_dir_wav',
 						output_dir: outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf('/')) + '/',
+						channel_count: getChannelCount(window.inputAudioFiles[0]),
 					},
 					],
 				},
