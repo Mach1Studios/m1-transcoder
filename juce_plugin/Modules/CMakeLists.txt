@@ -1,5 +1,3 @@
-juce_add_modules(juce_murka)
-
 # Mach1 Spatial SDK
 # Use these options to block dependencies we do not need
 set(BUILD_M1DECODEPOSITIONAL OFF)

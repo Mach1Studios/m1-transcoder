@@ -1,11 +1,3 @@
-/*
-  ==============================================================================
-
-    This file contains the basic framework code for a JUCE plugin processor.
-
-  ==============================================================================
-*/
-
 #pragma once
 
 #include <JuceHeader.h>
@@ -17,10 +9,13 @@
 #include "Mach1Transcode.h"
 #include "Mach1TranscodeConstants.h"
 
+#define MINUS_3DB_AMP (0.707945784f)
+#define MINUS_6DB_AMP (0.501187234f)
+
 //==============================================================================
 /**
 */
-class M1TranscoderAudioProcessor  : public juce::AudioProcessor
+class M1TranscoderAudioProcessor  : public juce::AudioProcessor, juce::AudioProcessorValueTreeState::Listener
 {
 public:
     //==============================================================================
@@ -28,14 +23,41 @@ public:
     ~M1TranscoderAudioProcessor() override;
 
     //==============================================================================
+    static AudioProcessor::BusesProperties getHostSpecificLayout()
+    {
+        // This determines the initial bus i/o for plugin on construction and depends on the `isBusesLayoutSupported()`
+        juce::PluginHostType hostType;
+
+        if (hostType.isProTools() || hostType.getPluginLoadedAs() == AudioProcessor::wrapperType_AAX)
+        {
+            // Pro Tools needs a fixed, stable initial configuration
+            return BusesProperties()
+                .withInput("IN", juce::AudioChannelSet::quadraphonic(), true)
+                .withOutput("OUT", juce::AudioChannelSet::quadraphonic(), true);
+        }
+        else if (hostType.getPluginLoadedAs() == AudioProcessor::wrapperType_VST3)
+        {
+            return BusesProperties()
+                // VST3 requires named plugin configurations only
+                .withInput("IN", juce::AudioChannelSet::namedChannelSet(4), true)
+                .withOutput("OUT", juce::AudioChannelSet::namedChannelSet(4), true);
+        }
+        else
+        {
+            return BusesProperties()
+                .withInput("IN", juce::AudioChannelSet::discreteChannels(4), true)
+                .withOutput("OUT", juce::AudioChannelSet::discreteChannels(4), true);
+        }
+    }
+    
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
-
-   #ifndef JucePlugin_PreferredChannelConfigurations
+    void parameterChanged(const juce::String& parameterID, float newValue) override;
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
-   #endif
-
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
+    static juce::String paramInputMode;
+    static juce::String paramOutputMode;
 
     //==============================================================================
     juce::AudioProcessorEditor* createEditor() override;
@@ -63,15 +85,14 @@ public:
     //==============================================================================
     void reconfigureAudioDecode();
     void reconfigureAudioTranscode();
-    void setDetectedInputChannelCount(int numberOfInputChannels);
 
-    void fallbackDecodeStrategy(const AudioSourceChannelInfo& bufferToFill, const AudioSourceChannelInfo& info);
-    void stereoDecodeStrategy(const AudioSourceChannelInfo& bufferToFill, const AudioSourceChannelInfo& info);
-    void monoDecodeStrategy(const AudioSourceChannelInfo& bufferToFill, const AudioSourceChannelInfo& info);
-    void readBufferDecodeStrategy(const AudioSourceChannelInfo& bufferToFill, const AudioSourceChannelInfo& info);
-    void intermediaryBufferDecodeStrategy(const AudioSourceChannelInfo& bufferToFill, const AudioSourceChannelInfo& info);
-    void intermediaryBufferTranscodeStrategy(const AudioSourceChannelInfo & bufferToFill, const AudioSourceChannelInfo & info);
-    void nullStrategy(const AudioSourceChannelInfo& bufferToFill, const AudioSourceChannelInfo& info);
+    void fallbackDecodeStrategy(const AudioSourceChannelInfo& bufferToFill);
+    void stereoDecodeStrategy(const AudioSourceChannelInfo& bufferToFill);
+    void monoDecodeStrategy(const AudioSourceChannelInfo& bufferToFill);
+    void readBufferDecodeStrategy(const AudioSourceChannelInfo& bufferToFill);
+    void intermediaryBufferDecodeStrategy(const AudioSourceChannelInfo& bufferToFill);
+    void intermediaryBufferTranscodeStrategy(const AudioSourceChannelInfo & bufferToFill);
+    void nullStrategy(const AudioSourceChannelInfo& bufferToFill);
 
     std::string getTranscodeInputFormat() const;
     std::string getTranscodeOutputFormat() const;
@@ -79,14 +100,16 @@ public:
     void setTranscodeOutputFormat(const std::string &name);
 
 private:
+    juce::UndoManager mUndoManager;
+    juce::AudioProcessorValueTreeState parameters;
+    
     // Mach1Decode API
     Mach1Decode<float> m1Decode;
     std::vector<float> spatialMixerCoeffs;
-    std::vector<juce::LinearSmoothedValue<float>> smoothedChannelCoeffs;
+    std::vector< juce::LinearSmoothedValue<float> > smoothedChannelCoeffs;
     juce::AudioBuffer<float> tempBuffer;
     juce::AudioBuffer<float> readBuffer;
     juce::AudioBuffer<float> intermediaryBuffer;
-    int detectedNumInputChannels;
 
     // Mach1Transcode API
     Mach1Transcode<float> m1Transcode;
@@ -101,10 +124,7 @@ private:
     juce::CriticalSection audioCallbackLock;
     juce::CriticalSection renderCallbackLock;
 
-    double sampleRate = 0.0;
-    int blockSize = 0;
-
-    std::map<int, std::vector<std::string>> matchingFormatNamesMap;
+    std::map< int, std::vector<std::string> > matchingFormatNamesMap;
 
       // Error display
     bool showErrorPopup = false;
@@ -182,8 +202,8 @@ private:
         }
     }
 
-    void (MainComponent::*m_decode_strategy)(const AudioSourceChannelInfo&, const AudioSourceChannelInfo&);
-    void (MainComponent::*m_transcode_strategy)(const AudioSourceChannelInfo&, const AudioSourceChannelInfo&);
+    void (M1TranscoderAudioProcessor::*m_decode_strategy)(const AudioSourceChannelInfo&);
+    void (M1TranscoderAudioProcessor::*m_transcode_strategy)(const AudioSourceChannelInfo&);
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (M1TranscoderAudioProcessor)
 };

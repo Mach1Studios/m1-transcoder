@@ -172,9 +172,12 @@ target_link_libraries(${PLUGIN_NAME} PRIVATE
     juce::juce_gui_extra
     juce::juce_opengl
     juce::juce_osc
-    juce_murka
     )
 target_link_libraries(${PLUGIN_NAME} PRIVATE Resources PUBLIC juce::juce_recommended_warning_flags juce::juce_recommended_config_flags juce::juce_recommended_lto_flags)
+
+# link m1-sdk
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE M1Encode M1Decode M1Transcode)
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE Modules/m1-sdk/libmach1spatial/api_common/include Modules/m1-sdk/libmach1spatial/api_decode/include Modules/m1-sdk/libmach1spatial/api_encode/include Modules/m1-sdk/libmach1spatial/api_transcode/include Modules/m1-sdk/libmach1spatial/deps)
 
 # definitions to replace the `JucePluginDefines.h`
 set(JucePlugin_Name ${PLUGIN_NAME})

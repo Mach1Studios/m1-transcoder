@@ -9,19 +9,26 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+juce::String M1TranscoderAudioProcessor::paramInputMode("inputMode");
+juce::String M1TranscoderAudioProcessor::paramOutputMode("outputMode");
+
 //==============================================================================
 M1TranscoderAudioProcessor::M1TranscoderAudioProcessor()
-#ifndef JucePlugin_PreferredChannelConfigurations
-     : AudioProcessor (BusesProperties()
-                     #if ! JucePlugin_IsMidiEffect
-                      #if ! JucePlugin_IsSynth
-                       .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
-                      #endif
-                       .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
-                     #endif
-                       )
-#endif
+     : m_decode_strategy(&M1TranscoderAudioProcessor::nullStrategy),
+       m_transcode_strategy(&M1TranscoderAudioProcessor::nullStrategy),
+       AudioProcessor(getHostSpecificLayout()),
+       parameters(*this, &mUndoManager, juce::Identifier("M1-Transcoder"), {
+    std::make_unique<juce::AudioParameterInt>(juce::ParameterID(paramInputMode, 1), TRANS("Input Mode"), 0, 128, 0),
+    std::make_unique<juce::AudioParameterInt>(juce::ParameterID(paramOutputMode, 1), TRANS("Output Mode"), 0, 128, 0)
+       })
 {
+    parameters.addParameterListener(paramInputMode, this);
+    parameters.addParameterListener(paramOutputMode, this);
+
+    // print build time for debug
+    juce::String date(__DATE__);
+    juce::String time(__TIME__);
+    DBG("[Transcoder] Build date: " + date + " | Build time: " + time);
 }
 
 M1TranscoderAudioProcessor::~M1TranscoderAudioProcessor()
@@ -93,8 +100,171 @@ void M1TranscoderAudioProcessor::changeProgramName (int index, const juce::Strin
 //==============================================================================
 void M1TranscoderAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    // Use this method as the place to do any pre-playback
-    // initialisation that you need..
+    // Setup for Mach1Decode
+    smoothedChannelCoeffs.resize(m1Decode.getFormatCoeffCount());
+    spatialMixerCoeffs.resize(m1Decode.getFormatCoeffCount());
+    for (int input_channel = 0; input_channel < m1Decode.getFormatChannelCount(); input_channel++) {
+        smoothedChannelCoeffs[input_channel * 2 + 0].reset(sampleRate, (double) 0.01);
+        smoothedChannelCoeffs[input_channel * 2 + 1].reset(sampleRate, (double) 0.01);
+    }
+    
+    // restructure output buffer
+    readBuffer.setSize(m1Decode.getFormatCoeffCount(), samplesPerBlock);
+}
+
+void M1TranscoderAudioProcessor::fallbackDecodeStrategy(const AudioSourceChannelInfo &bufferToFill) {
+    // Invalid Decode I/O; clear buffers
+    for (auto channel = getTotalNumInputChannels(); channel < 2; ++channel) {
+        if (channel < bufferToFill.buffer->getNumChannels())
+        {
+            bufferToFill.buffer->clear(channel, 0, bufferToFill.numSamples);
+        }
+    }
+}
+
+void M1TranscoderAudioProcessor::stereoDecodeStrategy(const AudioSourceChannelInfo &bufferToFill) {
+    bufferToFill.buffer->copyFrom(0, 0, readBuffer, 0, 0, bufferToFill.numSamples);
+    if (bufferToFill.buffer->getNumChannels() > 1)
+    {
+        bufferToFill.buffer->copyFrom(1, 0, readBuffer, 1, 0, bufferToFill.numSamples);
+    }
+}
+
+void M1TranscoderAudioProcessor::monoDecodeStrategy(const AudioSourceChannelInfo &bufferToFill) {
+    bufferToFill.buffer->copyFrom(0, 0, readBuffer, 0, 0, bufferToFill.numSamples);
+    if (bufferToFill.buffer->getNumChannels() > 1)
+    {
+        bufferToFill.buffer->copyFrom(1, 0, readBuffer, 0, 0, bufferToFill.numSamples);
+    }
+    bufferToFill.buffer->applyGain(MINUS_3DB_AMP); // apply -3dB pan-law gain to all channels
+}
+
+void M1TranscoderAudioProcessor::readBufferDecodeStrategy(const AudioSourceChannelInfo &bufferToFill) {
+    auto sample_count = bufferToFill.numSamples;
+    auto channel_count = getTotalNumInputChannels();
+    float *outBufferR = nullptr;
+    float *outBufferL = bufferToFill.buffer->getWritePointer(0);
+    if (bufferToFill.buffer->getNumChannels() > 1)
+    {
+        outBufferR = bufferToFill.buffer->getWritePointer(1);
+    }
+    //auto ori_deg = currentOrientation.GetGlobalRotationAsEulerDegrees();
+    //m1Decode.setRotationDegrees({ori_deg.GetYaw(), ori_deg.GetPitch(), ori_deg.GetRoll()});
+    spatialMixerCoeffs = m1Decode.decodeCoeffs();
+
+    // Update spatial mixer coeffs from Mach1Decode for a smoothed value
+    for (int channel = 0; channel < channel_count; ++channel) {
+        smoothedChannelCoeffs[channel * 2 + 0].setTargetValue(spatialMixerCoeffs[channel * 2 + 0]);
+        smoothedChannelCoeffs[channel * 2 + 1].setTargetValue(spatialMixerCoeffs[channel * 2 + 1]);
+    }
+
+    // copy from readBuffer for doubled channels
+    for (auto channel = 0; channel < channel_count; ++channel) {
+        tempBuffer.copyFrom(channel * 2 + 0, 0, readBuffer, channel, 0, sample_count);
+        tempBuffer.copyFrom(channel * 2 + 1, 0, readBuffer, channel, 0, sample_count);
+    }
+
+    // apply decode coeffs to output buffer
+    for (int sample = 0; sample < bufferToFill.numSamples; sample++) {
+        for (int channel = 0; channel < channel_count; channel++) {
+            auto left_sample = tempBuffer.getReadPointer(channel * 2 + 0)[sample];
+            auto right_sample = tempBuffer.getReadPointer(channel * 2 + 1)[sample];
+            outBufferL[sample] += left_sample * smoothedChannelCoeffs[channel * 2 + 0].getNextValue();
+            if (bufferToFill.buffer->getNumChannels() > 1)
+            {
+                outBufferR[sample] += right_sample * smoothedChannelCoeffs[channel * 2 + 1].getNextValue();
+            }
+        }
+    }
+}
+
+void M1TranscoderAudioProcessor::intermediaryBufferDecodeStrategy(const AudioSourceChannelInfo &bufferToFill) {
+    auto sample_count = bufferToFill.numSamples;
+    auto channel_count = getTotalNumInputChannels();
+    float *outBufferR = nullptr;
+    float *outBufferL = bufferToFill.buffer->getWritePointer(0);
+    if (bufferToFill.buffer->getNumChannels() > 1)
+    {
+        outBufferR = bufferToFill.buffer->getWritePointer(1);
+    }
+    //auto ori_deg = currentOrientation.GetGlobalRotationAsEulerDegrees();
+    //m1Decode.setRotationDegrees({ori_deg.GetYaw(), ori_deg.GetPitch(), ori_deg.GetRoll()});
+    spatialMixerCoeffs = m1Decode.decodeCoeffs();
+
+    // Update spatial mixer coeffs from Mach1Decode for a smoothed value
+    for (int channel = 0; channel < channel_count; ++channel) {
+        smoothedChannelCoeffs[channel * 2 + 0].setTargetValue(spatialMixerCoeffs[channel * 2 + 0]);
+        smoothedChannelCoeffs[channel * 2 + 1].setTargetValue(spatialMixerCoeffs[channel * 2 + 1]);
+    }
+
+    // copy from intermediaryBuffer for doubled channels
+    for (auto channel = 0; channel < channel_count; ++channel) {
+        tempBuffer.copyFrom(channel * 2 + 0, 0, intermediaryBuffer, channel, 0, sample_count);
+        tempBuffer.copyFrom(channel * 2 + 1, 0, intermediaryBuffer, channel, 0, sample_count);
+    }
+
+    // apply decode coeffs to output buffer
+    for (int sample = 0; sample < bufferToFill.numSamples; sample++) {
+        for (int channel = 0; channel < channel_count; channel++) {
+            auto left_sample = tempBuffer.getReadPointer(channel * 2 + 0)[sample];
+            auto right_sample = tempBuffer.getReadPointer(channel * 2 + 1)[sample];
+            outBufferL[sample] += left_sample * smoothedChannelCoeffs[channel * 2 + 0].getNextValue();
+            if (bufferToFill.buffer->getNumChannels() > 1)
+            {
+                outBufferR[sample] += right_sample * smoothedChannelCoeffs[channel * 2 + 1].getNextValue();
+            }
+        }
+    }
+}
+
+void M1TranscoderAudioProcessor::intermediaryBufferTranscodeStrategy(const AudioSourceChannelInfo &bufferToFill) {
+    auto out = m1Transcode.getOutputNumChannels();
+    auto sampleCount = bufferToFill.numSamples;
+
+    if (out == 0) {
+        return;
+    }
+
+    // restructure output buffer
+    if (intermediaryBuffer.getNumSamples() != out || intermediaryBuffer.getNumSamples() != sampleCount) {
+        intermediaryBuffer.setSize(out, bufferToFill.numSamples);
+        intermediaryBuffer.clear();
+    }
+
+    std::vector<float*> readPtrs;
+    readPtrs.resize(readBuffer.getNumChannels());
+    for(int i = 0; i < readBuffer.getNumChannels(); i++) {
+        readPtrs[i] = readBuffer.getWritePointer(i); // won't be written to. m1Transcode just expects non-const float**.
+    }
+
+    std::vector<float*> intermediaryPtrs;
+    intermediaryPtrs.resize(intermediaryBuffer.getNumChannels());
+    for(int i = 0; i < intermediaryBuffer.getNumChannels(); i++) {
+        intermediaryPtrs[i] = intermediaryBuffer.getWritePointer(i);
+    }
+
+    try {
+        m1Transcode.processConversion(readPtrs.data(), intermediaryPtrs.data(), sampleCount);
+    } catch (const std::exception& e) {
+        // Log error but don't crash
+        DBG("Transcode error: " << e.what());
+        intermediaryBuffer.clear();
+        
+        // Display error to user
+        showErrorPopup = true;
+        errorMessage = "TRANSCODE ERROR";
+        errorMessageInfo = "No valid transcode conversion path found.";
+        errorStartTime = std::chrono::steady_clock::now();
+    }
+}
+
+void M1TranscoderAudioProcessor::nullStrategy(const AudioSourceChannelInfo &bufferToFill)
+{
+    // Display error to user
+    showErrorPopup = true;
+    errorMessage = "OUTPUT ERROR";
+    errorMessageInfo = "No valid audio strategy available.";
+    errorStartTime = std::chrono::steady_clock::now();
 }
 
 void M1TranscoderAudioProcessor::releaseResources()
@@ -103,31 +273,31 @@ void M1TranscoderAudioProcessor::releaseResources()
     // spare memory, etc.
 }
 
-#ifndef JucePlugin_PreferredChannelConfigurations
 bool M1TranscoderAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
-  #if JucePlugin_IsMidiEffect
-    juce::ignoreUnused (layouts);
-    return true;
-  #else
-    // This is the place where you check if the layout is supported.
-    // In this template code we only support mono or stereo.
-    // Some plugin hosts, such as certain GarageBand versions, will only
-    // load plugins that support stereo bus layouts.
-    if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono()
-     && layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
-        return false;
+    auto numIns  = layouts.getMainInputChannels();
+    //auto numOuts = layouts.getMainOutputChannels();
 
-    // This checks if the input layout matches the output layout
-   #if ! JucePlugin_IsSynth
-    if (layouts.getMainOutputChannelSet() != layouts.getMainInputChannelSet())
-        return false;
-   #endif
-
-    return true;
-  #endif
+    // allow any configuration where there are at least 2 channels
+    return (numIns >= 2);
 }
-#endif
+
+void M1TranscoderAudioProcessor::parameterChanged(const juce::String& parameterID, float newValue)
+{
+    if (parameterID == paramInputMode)
+    {
+
+    }
+    else if (parameterID == paramOutputMode)
+    {
+
+    }
+    else
+    {
+        // error
+    }
+}
+
 
 void M1TranscoderAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
@@ -135,26 +305,138 @@ void M1TranscoderAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
-    // In case we have more outputs than inputs, this code clears any output
-    // channels that didn't contain input data, (because these aren't
-    // guaranteed to be empty - they may contain garbage).
-    // This is here to avoid people getting screaming feedback
-    // when they first compile a plugin, but obviously you don't need to keep
-    // this code if your algorithm always overwrites all the output channels.
-    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear (i, 0, buffer.getNumSamples());
+    readBuffer.setSize(totalNumOutputChannels, buffer.getNumSamples());
+    readBuffer.clear();
+    
+    tempBuffer.setSize(totalNumOutputChannels * 2, buffer.getNumSamples());
+    tempBuffer.clear();
 
-    // This is the place where you'd normally do the guts of your plugin's
-    // audio processing...
-    // Make sure to reset the state if your inner loop is processing
-    // the samples and the outer loop is handling the channels.
-    // Alternatively, you can process the samples with the channels
-    // interleaved by keeping the same state.
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
-    {
-        auto* channelData = buffer.getWritePointer (channel);
+    // if you've got more output channels than input clears extra outputs
+    for (auto channel = totalNumInputChannels; channel < 2 && channel < totalNumInputChannels; ++channel) {
+        readBuffer.clear(channel, 0, buffer.getNumSamples());
+    }
 
-        // ..do something to the data...
+    // config transcode
+    if (pendingFormatChange ||
+        m1Transcode.getFormatName(m1Transcode.getInputFormat()) != selectedInputFormat ||
+        m1Transcode.getFormatName(m1Transcode.getOutputFormat()) != selectedOutputFormat) {
+        reconfigureAudioTranscode();
+        reconfigureAudioDecode();
+    }
+
+    // Processing loop
+    juce::AudioSourceChannelInfo bufferToFill(&buffer, 0, buffer.getNumSamples());
+    (this->*m_transcode_strategy)(bufferToFill);
+    (this->*m_decode_strategy)(bufferToFill);
+}
+
+std::string M1TranscoderAudioProcessor::getTranscodeInputFormat() const {
+    return selectedInputFormat;
+}
+
+std::string M1TranscoderAudioProcessor::getTranscodeOutputFormat() const {
+    return selectedOutputFormat;
+}
+
+void M1TranscoderAudioProcessor::setTranscodeInputFormat(const std::string &name) {
+    if (!name.empty() && m1Transcode.getFormatFromString(name) != -1) {
+        // Queue the format change instead of applying immediately
+        m1Transcode.setInputFormat(m1Transcode.getFormatFromString(name));
+        selectedInputFormat = name;
+        pendingFormatChange = true;
+    }
+}
+
+void M1TranscoderAudioProcessor::setTranscodeOutputFormat(const std::string &name) {
+    if (!name.empty() && m1Transcode.getFormatFromString(name) != -1) {
+        // Queue the format change instead of applying immediately
+        m1Transcode.setOutputFormat(m1Transcode.getFormatFromString(name));
+        selectedOutputFormat = name;
+        pendingFormatChange = true;
+    }
+}
+
+void M1TranscoderAudioProcessor::reconfigureAudioDecode() {
+    // Setup for Mach1Decode API
+    m1Decode.setPlatformType(Mach1PlatformDefault);
+    m1Decode.setFilterSpeed(0.99f);
+
+    switch (getTotalNumInputChannels()) {
+        case 0:
+            m_decode_strategy = &M1TranscoderAudioProcessor::nullStrategy;
+            break;
+        case 1:
+            m_decode_strategy = &M1TranscoderAudioProcessor::monoDecodeStrategy;
+            break;
+        case 2:
+            m_decode_strategy = &M1TranscoderAudioProcessor::stereoDecodeStrategy;
+            break;
+        default:
+            // For any multichannel input (>2), use intermediary buffer strategy
+            if (getTotalNumInputChannels() == 4 && selectedInputFormat == "M1Spatial-4") {
+                m1Decode.setDecodeMode(M1DecodeSpatial_4);
+                m_decode_strategy = &M1TranscoderAudioProcessor::readBufferDecodeStrategy; // decode directly to buffer
+            } else if (getTotalNumInputChannels() == 8 && selectedInputFormat == "M1Spatial-8") {
+                m1Decode.setDecodeMode(M1DecodeSpatial_8);
+                m_decode_strategy = &M1TranscoderAudioProcessor::readBufferDecodeStrategy; // decode directly to buffer
+            } else {
+                m1Decode.setDecodeMode(M1DecodeSpatial_14);
+                if (selectedInputFormat == "M1Spatial-14") {
+                    m_decode_strategy = &M1TranscoderAudioProcessor::readBufferDecodeStrategy; // decode directly to buffer
+                } else {
+                    m_decode_strategy = &M1TranscoderAudioProcessor::intermediaryBufferDecodeStrategy; // decode to intermediary buffer for transcoding
+                }
+            }
+            break;
+    }
+}
+
+// TODO: Detect any Mach1Spatial comment metadata
+void M1TranscoderAudioProcessor::reconfigureAudioTranscode() {
+    // Default to null strategy
+    m_transcode_strategy = &M1TranscoderAudioProcessor::nullStrategy;
+
+    if (getTotalNumInputChannels() <= 2) {
+        return;
+    }
+
+    // Use selected format if available, otherwise use default behavior
+    if (!selectedInputFormat.empty()) {
+        setTranscodeInputFormat(selectedInputFormat);
+
+        /// INPUT PREFERRED OUTPUT OVERRIDE ASSIGNMENTS
+        if (selectedInputFormat == "3.0_LCR" || // NOTE: switch to M1Spatial-14 for center channel
+            selectedInputFormat == "4.0_LCRS" || // NOTE: switch to M1Spatial-14 for center channel
+            selectedInputFormat == "M1Horizon-4_2")
+        {
+            setTranscodeOutputFormat("M1Spatial-4");
+        }
+        else if (selectedInputFormat == "4.0_AFormat" ||
+                 selectedInputFormat == "Ambeo" ||
+                 selectedInputFormat == "TetraMic" ||
+                 selectedInputFormat == "SPS-200" ||
+                 selectedInputFormat == "ORTF3D" ||
+                 selectedInputFormat == "CoreSound-OctoMic" ||
+                 selectedInputFormat == "CoreSound-OctoMic_SIM")
+        {
+            setTranscodeOutputFormat("M1Spatial-8");
+        }
+        else
+        {
+            setTranscodeOutputFormat("M1Spatial-14");
+        }
+        // TODO: Add more format overrides for higher order ambisonic to 38ch when ready
+        
+        if (m1Transcode.processConversionPath())
+        {
+            m_transcode_strategy = &M1TranscoderAudioProcessor::intermediaryBufferTranscodeStrategy;
+        }
+        else
+        {
+            m_transcode_strategy = &M1TranscoderAudioProcessor::nullStrategy;
+
+        }
+        pendingFormatChange = false;
     }
 }
 
