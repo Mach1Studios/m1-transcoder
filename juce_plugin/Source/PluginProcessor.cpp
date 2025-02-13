@@ -122,63 +122,7 @@ void M1TranscoderAudioProcessor::fallbackDecodeStrategy(const AudioSourceChannel
     }
 }
 
-void M1TranscoderAudioProcessor::stereoDecodeStrategy(const AudioSourceChannelInfo &bufferToFill) {
-    bufferToFill.buffer->copyFrom(0, 0, readBuffer, 0, 0, bufferToFill.numSamples);
-    if (bufferToFill.buffer->getNumChannels() > 1)
-    {
-        bufferToFill.buffer->copyFrom(1, 0, readBuffer, 1, 0, bufferToFill.numSamples);
-    }
-}
-
-void M1TranscoderAudioProcessor::monoDecodeStrategy(const AudioSourceChannelInfo &bufferToFill) {
-    bufferToFill.buffer->copyFrom(0, 0, readBuffer, 0, 0, bufferToFill.numSamples);
-    if (bufferToFill.buffer->getNumChannels() > 1)
-    {
-        bufferToFill.buffer->copyFrom(1, 0, readBuffer, 0, 0, bufferToFill.numSamples);
-    }
-    bufferToFill.buffer->applyGain(MINUS_3DB_AMP); // apply -3dB pan-law gain to all channels
-}
-
-void M1TranscoderAudioProcessor::readBufferDecodeStrategy(const AudioSourceChannelInfo &bufferToFill) {
-    auto sample_count = bufferToFill.numSamples;
-    auto channel_count = getTotalNumInputChannels();
-    float *outBufferR = nullptr;
-    float *outBufferL = bufferToFill.buffer->getWritePointer(0);
-    if (bufferToFill.buffer->getNumChannels() > 1)
-    {
-        outBufferR = bufferToFill.buffer->getWritePointer(1);
-    }
-    //auto ori_deg = currentOrientation.GetGlobalRotationAsEulerDegrees();
-    //m1Decode.setRotationDegrees({ori_deg.GetYaw(), ori_deg.GetPitch(), ori_deg.GetRoll()});
-    spatialMixerCoeffs = m1Decode.decodeCoeffs();
-
-    // Update spatial mixer coeffs from Mach1Decode for a smoothed value
-    for (int channel = 0; channel < channel_count; ++channel) {
-        smoothedChannelCoeffs[channel * 2 + 0].setTargetValue(spatialMixerCoeffs[channel * 2 + 0]);
-        smoothedChannelCoeffs[channel * 2 + 1].setTargetValue(spatialMixerCoeffs[channel * 2 + 1]);
-    }
-
-    // copy from readBuffer for doubled channels
-    for (auto channel = 0; channel < channel_count; ++channel) {
-        tempBuffer.copyFrom(channel * 2 + 0, 0, readBuffer, channel, 0, sample_count);
-        tempBuffer.copyFrom(channel * 2 + 1, 0, readBuffer, channel, 0, sample_count);
-    }
-
-    // apply decode coeffs to output buffer
-    for (int sample = 0; sample < bufferToFill.numSamples; sample++) {
-        for (int channel = 0; channel < channel_count; channel++) {
-            auto left_sample = tempBuffer.getReadPointer(channel * 2 + 0)[sample];
-            auto right_sample = tempBuffer.getReadPointer(channel * 2 + 1)[sample];
-            outBufferL[sample] += left_sample * smoothedChannelCoeffs[channel * 2 + 0].getNextValue();
-            if (bufferToFill.buffer->getNumChannels() > 1)
-            {
-                outBufferR[sample] += right_sample * smoothedChannelCoeffs[channel * 2 + 1].getNextValue();
-            }
-        }
-    }
-}
-
-void M1TranscoderAudioProcessor::intermediaryBufferDecodeStrategy(const AudioSourceChannelInfo &bufferToFill) {
+void M1TranscoderAudioProcessor::intermediaryBufferDecodeStrategy(const AudioSourceChannelInfo &bufferToFill) {    
     auto sample_count = bufferToFill.numSamples;
     auto channel_count = getTotalNumInputChannels();
     float *outBufferR = nullptr;
@@ -284,17 +228,30 @@ bool M1TranscoderAudioProcessor::isBusesLayoutSupported (const BusesLayout& layo
 
 void M1TranscoderAudioProcessor::parameterChanged(const juce::String& parameterID, float newValue)
 {
+    // For safety, convert newValue to int
+    auto index = static_cast<int>(newValue);
+
     if (parameterID == paramInputMode)
     {
-
+        auto availableFormats = getMatchingFormatNames(getTotalNumInputChannels());
+        if (index >= 0 && index < static_cast<int>(availableFormats.size()))
+        {
+            setTranscodeInputFormat(availableFormats[index]);
+        }
+        pendingFormatChange = true;
     }
     else if (parameterID == paramOutputMode)
     {
-
+        auto availableFormats = getMatchingFormatNames(getTotalNumOutputChannels());
+        if (index >= 0 && index < static_cast<int>(availableFormats.size()))
+        {
+            setTranscodeOutputFormat(availableFormats[index]);
+        }
+        pendingFormatChange = true;
     }
     else
     {
-        // error
+        // error / unhandled param
     }
 }
 
@@ -327,7 +284,7 @@ void M1TranscoderAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // Processing loop
     juce::AudioSourceChannelInfo bufferToFill(&buffer, 0, buffer.getNumSamples());
     (this->*m_transcode_strategy)(bufferToFill);
-    (this->*m_decode_strategy)(bufferToFill);
+    //(this->*m_decode_strategy)(bufferToFill);
 }
 
 std::string M1TranscoderAudioProcessor::getTranscodeInputFormat() const {
@@ -365,28 +322,8 @@ void M1TranscoderAudioProcessor::reconfigureAudioDecode() {
         case 0:
             m_decode_strategy = &M1TranscoderAudioProcessor::nullStrategy;
             break;
-        case 1:
-            m_decode_strategy = &M1TranscoderAudioProcessor::monoDecodeStrategy;
-            break;
-        case 2:
-            m_decode_strategy = &M1TranscoderAudioProcessor::stereoDecodeStrategy;
-            break;
         default:
-            // For any multichannel input (>2), use intermediary buffer strategy
-            if (getTotalNumInputChannels() == 4 && selectedInputFormat == "M1Spatial-4") {
-                m1Decode.setDecodeMode(M1DecodeSpatial_4);
-                m_decode_strategy = &M1TranscoderAudioProcessor::readBufferDecodeStrategy; // decode directly to buffer
-            } else if (getTotalNumInputChannels() == 8 && selectedInputFormat == "M1Spatial-8") {
-                m1Decode.setDecodeMode(M1DecodeSpatial_8);
-                m_decode_strategy = &M1TranscoderAudioProcessor::readBufferDecodeStrategy; // decode directly to buffer
-            } else {
-                m1Decode.setDecodeMode(M1DecodeSpatial_14);
-                if (selectedInputFormat == "M1Spatial-14") {
-                    m_decode_strategy = &M1TranscoderAudioProcessor::readBufferDecodeStrategy; // decode directly to buffer
-                } else {
-                    m_decode_strategy = &M1TranscoderAudioProcessor::intermediaryBufferDecodeStrategy; // decode to intermediary buffer for transcoding
-                }
-            }
+            m_decode_strategy = &M1TranscoderAudioProcessor::intermediaryBufferDecodeStrategy; // decode to intermediary buffer for transcoding
             break;
     }
 }
@@ -396,35 +333,16 @@ void M1TranscoderAudioProcessor::reconfigureAudioTranscode() {
     // Default to null strategy
     m_transcode_strategy = &M1TranscoderAudioProcessor::nullStrategy;
 
-    if (getTotalNumInputChannels() <= 2) {
+    if (getTotalNumInputChannels() < 1 || getTotalNumOutputChannels() < 1)
+    {
         return;
     }
 
     // Use selected format if available, otherwise use default behavior
     if (!selectedInputFormat.empty()) {
         setTranscodeInputFormat(selectedInputFormat);
+        setTranscodeOutputFormat(selectedOutputFormat);
 
-        /// INPUT PREFERRED OUTPUT OVERRIDE ASSIGNMENTS
-        if (selectedInputFormat == "3.0_LCR" || // NOTE: switch to M1Spatial-14 for center channel
-            selectedInputFormat == "4.0_LCRS" || // NOTE: switch to M1Spatial-14 for center channel
-            selectedInputFormat == "M1Horizon-4_2")
-        {
-            setTranscodeOutputFormat("M1Spatial-4");
-        }
-        else if (selectedInputFormat == "4.0_AFormat" ||
-                 selectedInputFormat == "Ambeo" ||
-                 selectedInputFormat == "TetraMic" ||
-                 selectedInputFormat == "SPS-200" ||
-                 selectedInputFormat == "ORTF3D" ||
-                 selectedInputFormat == "CoreSound-OctoMic" ||
-                 selectedInputFormat == "CoreSound-OctoMic_SIM")
-        {
-            setTranscodeOutputFormat("M1Spatial-8");
-        }
-        else
-        {
-            setTranscodeOutputFormat("M1Spatial-14");
-        }
         // TODO: Add more format overrides for higher order ambisonic to 38ch when ready
         
         if (m1Transcode.processConversionPath())
@@ -454,15 +372,16 @@ juce::AudioProcessorEditor* M1TranscoderAudioProcessor::createEditor()
 //==============================================================================
 void M1TranscoderAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
+    // Let the ValueTree handle it
+    if (auto xml = parameters.copyState().createXml())
+        copyXmlToBinary(*xml, destData);
 }
 
 void M1TranscoderAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
+    // Let the ValueTree handle it
+    if (auto xml = getXmlFromBinary(data, sizeInBytes))
+        parameters.replaceState(juce::ValueTree::fromXml(*xml));
 }
 
 //==============================================================================

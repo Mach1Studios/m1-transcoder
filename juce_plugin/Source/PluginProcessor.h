@@ -87,9 +87,6 @@ public:
     void reconfigureAudioTranscode();
 
     void fallbackDecodeStrategy(const AudioSourceChannelInfo& bufferToFill);
-    void stereoDecodeStrategy(const AudioSourceChannelInfo& bufferToFill);
-    void monoDecodeStrategy(const AudioSourceChannelInfo& bufferToFill);
-    void readBufferDecodeStrategy(const AudioSourceChannelInfo& bufferToFill);
     void intermediaryBufferDecodeStrategy(const AudioSourceChannelInfo& bufferToFill);
     void intermediaryBufferTranscodeStrategy(const AudioSourceChannelInfo & bufferToFill);
     void nullStrategy(const AudioSourceChannelInfo& bufferToFill);
@@ -98,41 +95,8 @@ public:
     std::string getTranscodeOutputFormat() const;
     void setTranscodeInputFormat(const std::string &name);
     void setTranscodeOutputFormat(const std::string &name);
-
-private:
-    juce::UndoManager mUndoManager;
-    juce::AudioProcessorValueTreeState parameters;
     
-    // Mach1Decode API
-    Mach1Decode<float> m1Decode;
-    std::vector<float> spatialMixerCoeffs;
-    std::vector< juce::LinearSmoothedValue<float> > smoothedChannelCoeffs;
-    juce::AudioBuffer<float> tempBuffer;
-    juce::AudioBuffer<float> readBuffer;
-    juce::AudioBuffer<float> intermediaryBuffer;
-
-    // Mach1Transcode API
-    Mach1Transcode<float> m1Transcode;
-    std::vector<float> transcodeToDecodeCoeffs;
-    std::vector< std::vector<float> > conversionMatrix;
-    
-    std::vector<std::string> currentFormatOptions;
-    std::string selectedInputFormat;
-    std::string selectedOutputFormat = "M1Spatial-14"; // default
-    std::atomic<bool> pendingFormatChange{false};
-
-    juce::CriticalSection audioCallbackLock;
-    juce::CriticalSection renderCallbackLock;
-
     std::map< int, std::vector<std::string> > matchingFormatNamesMap;
-
-      // Error display
-    bool showErrorPopup = false;
-    std::string errorMessage = "";
-    std::string errorMessageInfo = "";
-    float fadeDuration = 5.0f;
-    float errorOpacity = 0.0f;
-    std::chrono::time_point<std::chrono::steady_clock> errorStartTime;
 
     std::vector<std::string> getMatchingFormatNames(int numChannels) {
         // Check if the numChannels already exists in the map
@@ -201,6 +165,39 @@ private:
             default: return "";
         }
     }
+
+    // Error display
+    bool showErrorPopup = false;
+    std::string errorMessage = "";
+    std::string errorMessageInfo = "";
+    float fadeDuration = 5.0f;
+    float errorOpacity = 0.0f;
+    std::chrono::time_point<std::chrono::steady_clock> errorStartTime;
+
+private:
+    juce::UndoManager mUndoManager;
+    juce::AudioProcessorValueTreeState parameters;
+    
+    // Mach1Decode API
+    Mach1Decode<float> m1Decode;
+    std::vector<float> spatialMixerCoeffs;
+    std::vector< juce::LinearSmoothedValue<float> > smoothedChannelCoeffs;
+    juce::AudioBuffer<float> tempBuffer;
+    juce::AudioBuffer<float> readBuffer;
+    juce::AudioBuffer<float> intermediaryBuffer;
+
+    // Mach1Transcode API
+    Mach1Transcode<float> m1Transcode;
+    std::vector<float> transcodeToDecodeCoeffs;
+    std::vector< std::vector<float> > conversionMatrix;
+    
+    std::vector<std::string> currentFormatOptions;
+    std::string selectedInputFormat;
+    std::string selectedOutputFormat;
+    std::atomic<bool> pendingFormatChange{false};
+
+    juce::CriticalSection audioCallbackLock;
+    juce::CriticalSection renderCallbackLock;
 
     void (M1TranscoderAudioProcessor::*m_decode_strategy)(const AudioSourceChannelInfo&);
     void (M1TranscoderAudioProcessor::*m_transcode_strategy)(const AudioSourceChannelInfo&);
