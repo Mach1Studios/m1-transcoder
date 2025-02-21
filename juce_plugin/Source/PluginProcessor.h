@@ -113,28 +113,6 @@ public:
             if (format.numChannels == numChannels) {
                 m1TranscodeTemp.setInputFormat(m1TranscodeTemp.getFormatFromString(format.name));
 
-                /// INPUT PREFERRED OUTPUT OVERRIDE ASSIGNMENTS
-                if (format.name == "3.0_LCR" || // NOTE: switch to M1Spatial-14 for center channel
-                    format.name == "4.0_LCRS" || // NOTE: switch to M1Spatial-14 for center channel
-                    format.name == "M1Horizon-4_2")
-                {
-                    m1TranscodeTemp.setOutputFormat(m1TranscodeTemp.getFormatFromString("M1Spatial-4"));
-                }
-                else if (format.name == "4.0_AFormat" ||
-                    format.name == "Ambeo" ||
-                    format.name == "TetraMic" ||
-                    format.name == "SPS-200" ||
-                    format.name == "ORTF3D" ||
-                    format.name == "CoreSound-OctoMic" ||
-                    format.name == "CoreSound-OctoMic_SIM")
-                {
-                    m1TranscodeTemp.setOutputFormat(m1TranscodeTemp.getFormatFromString("M1Spatial-8"));
-                }
-                else
-                {
-                    m1TranscodeTemp.setOutputFormat(m1TranscodeTemp.getFormatFromString("M1Spatial-14"));
-                }
-
                 if (m1TranscodeTemp.processConversionPath()) {
                     matchingFormatNames.push_back(format.name);
                 }
