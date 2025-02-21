@@ -17,6 +17,9 @@ const m1transcodeDir = '"' + dataPath + (isWin ? "m1-transcode-win-x64/" : "m1-t
 const m1transcode = '"' + dataPath + (isWin ? "m1-transcode-win-x64/m1-transcode.exe" : "m1-transcode-osx-x64/m1-transcode") + '"';
 const M1TRANSCODE_ARCHIVE_URL = (isWin ? "https://mach1-releases.s3.amazonaws.com/1.5.11/transcode/m1-transcode-win-x64.zip" : "https://mach1-releases.s3.amazonaws.com/1.5.11/transcode/m1-transcode-osx-x64.zip");
 const M1TRANSCODE_ARCHIVE_FILENAME = (isWin ? "m1-transcode-win-x64.zip" : "m1-transcode-osx-x64.zip");
+const ffprobe = '"' + dataPath + (isWin ? "ffprobe.exe" : "ffprobe") + '"';
+const FFPROBE_ARCHIVE_URL = (isWin ? "https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v4.1/ffprobe-4.1-win-64.zip" : "https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v4.1/ffprobe-4.1.7-osx-64.zip");
+const FFPROBE_ARCHIVE_FILENAME = (isWin ? "ffprobe-4.1-win-64.zip" : "ffprobe-4.1.7-osx-64.zip");
 // const spatialmedia = '"' + dataPath + "spatialmedia" + '"';
 // const SPATIALMEDIA_ARCHIVE_URL = "https://github.com/google/spatial-media/archive/refs/heads/master.zip";
 // const SPATIALMEDIA_DIR = "spatial-media-master";
@@ -73,6 +76,51 @@ async function CheckForDependenciesAndDownload() {
 	
 	}
 
+	// check ffprobe
+	if (!fs.existsSync(ffprobe.split('"').join(''))) {
+		// show dialog
+		$("#downloader").css("display", "");
+		$("#downloader progress").attr('value', 0);
+
+		log.info(FFPROBE_ARCHIVE_FILENAME);
+
+		// download ffprobe
+		const response = await new Promise((resolve, reject) => {
+			ipcRenderer.once('download-complete', (event, response) => {
+				// unzip
+				extract(dataPath + path.basename(FFPROBE_ARCHIVE_URL), {
+					dir: dataPath
+				}, function(err) {
+					if (fs.existsSync(ffprobe.split('"').join(''))) {
+						// delete files
+						fs.unlink(dataPath + path.basename(FFPROBE_ARCHIVE_FILENAME), function(err) {
+							if (err) throw err;
+							// if no error, file has been deleted successfully
+							log.info(dataPath + path.basename(FFPROBE_ARCHIVE_FILENAME) + ' deleted!');
+						});
+					}
+				});
+
+				// hide dialog
+				$("#downloader").css("display", "none");
+				log.info("DONE: " + FFPROBE_ARCHIVE_FILENAME);
+				
+				resolve(response);
+			});
+
+			ipcRenderer.once('download-error', (event, response) => {
+			  log.error(response);
+			  resolve(response);
+			});
+
+			ipcRenderer.on('on-progress', (event, progress) => {
+			  log.info("progress: " + progress);
+			  $("#downloader progress").attr('value', progress);
+			});
+
+			ipcRenderer.send('start-download', FFPROBE_ARCHIVE_URL);
+		});
+	}
 
 	// check m1-transcode
 	if (!fs.existsSync(m1transcode.split('"').join(''))) {
