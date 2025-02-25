@@ -2,6 +2,11 @@ cmake_minimum_required(VERSION 3.15.0)
 file(STRINGS VERSION CURRENT_VERSION)
 project(M1-Transcoder VERSION ${CURRENT_VERSION})
 
+# Add M1_STATIC definition for Windows
+if(WIN32)
+    add_definitions(-DM1_STATIC)
+endif()
+
 ### IDE Generator pre-config ###
 # Xcode: Disable automatic build scheme generation globally.
 #        Instead, we explicitely specify which targets require schemes.
