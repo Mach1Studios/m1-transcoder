@@ -2,11 +2,6 @@ cmake_minimum_required(VERSION 3.15.0)
 file(STRINGS VERSION CURRENT_VERSION)
 project(M1-Transcoder VERSION ${CURRENT_VERSION})
 
-# Add M1_STATIC definition for Windows
-if(WIN32)
-    add_definitions(-DM1_STATIC)
-endif()
-
 ### IDE Generator pre-config ###
 # Xcode: Disable automatic build scheme generation globally.
 #        Instead, we explicitely specify which targets require schemes.
@@ -16,7 +11,11 @@ if(APPLE)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "Minimum OS X deployment version" FORCE)
     set(CMAKE_OSX_ARCHITECTURES "x86_64;arm64" CACHE STRING "Architectures" FORCE)
     set(CMAKE_XCODE_ATTRIBUTE_MACOSX_DEPLOYMENT_TARGET[arch=arm64] "11.0" CACHE STRING "arm 64 minimum deployment target" FORCE)
-endif()# IDEs:  Enable grouping of source files into folders in IDEs.
+elseif(WIN32)
+    add_definitions(-DM1_STATIC)
+endif()
+
+# IDEs:  Enable grouping of source files into folders in IDEs.
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 # IDEs:  Create a folder in the IDE with the JUCE Module code.
 option(JUCE_ENABLE_MODULE_SOURCE_GROUPS "Show all module sources in IDE projects" ON)
