@@ -15,11 +15,19 @@ M1TranscoderAudioProcessorEditor::M1TranscoderAudioProcessorEditor (M1Transcoder
 {
     // Make sure that before the constructor has finished, you've set the
     // editor's size to whatever you need it to be.
-    setSize (400, 300);
+    setSize(400, 300);
+
+    // UI component
+    mainComponent = new MainComponent(p);
+    mainComponent->setSize(getWidth(), getHeight());
+    addAndMakeVisible(mainComponent);
 }
 
 M1TranscoderAudioProcessorEditor::~M1TranscoderAudioProcessorEditor()
 {
+    mainComponent->shutdownOpenGL();
+    removeAllChildren();
+    delete mainComponent;
 }
 
 //==============================================================================
@@ -27,14 +35,13 @@ void M1TranscoderAudioProcessorEditor::paint (juce::Graphics& g)
 {
     // (Our component is opaque, so we must completely fill the background with a solid colour)
     g.fillAll (getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId));
-
-    g.setColour (juce::Colours::white);
-    g.setFont (15.0f);
-    g.drawFittedText ("Hello World!", getLocalBounds(), juce::Justification::centred, 1);
 }
 
 void M1TranscoderAudioProcessorEditor::resized()
 {
-    // This is generally where you'll want to lay out the positions of any
-    // subcomponents in your editor..
+    // This is called when the editor is resized.
+    // Update the bounds of our component
+    if (mainComponent != nullptr) {
+        mainComponent->setBounds(getLocalBounds());
+    }
 }

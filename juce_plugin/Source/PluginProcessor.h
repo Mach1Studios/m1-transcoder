@@ -95,31 +95,15 @@ public:
     std::string getTranscodeOutputFormat() const;
     void setTranscodeInputFormat(const std::string &name);
     void setTranscodeOutputFormat(const std::string &name);
-    
-    std::map< int, std::vector<std::string> > matchingFormatNamesMap;
 
     std::vector<std::string> getMatchingFormatNames(int numChannels) {
-        // Check if the numChannels already exists in the map
-        auto it = matchingFormatNamesMap.find(numChannels);
-        if (it != matchingFormatNamesMap.end()) {
-            return it->second; // Return the existing list if numChannels is found
-        }
-
         std::vector<std::string> matchingFormatNames;
-
-        Mach1Transcode<float> m1TranscodeTemp;
 
         for (const auto& format : Mach1TranscodeConstants::formats) {
             if (format.numChannels == numChannels) {
-                m1TranscodeTemp.setInputFormat(m1TranscodeTemp.getFormatFromString(format.name));
-
-                if (m1TranscodeTemp.processConversionPath()) {
-                    matchingFormatNames.push_back(format.name);
-                }
+                matchingFormatNames.push_back(format.name);
             }
         }
-
-        matchingFormatNamesMap[numChannels] = matchingFormatNames;
         return matchingFormatNames;
     }
 
@@ -152,9 +136,15 @@ public:
     float errorOpacity = 0.0f;
     std::chrono::time_point<std::chrono::steady_clock> errorStartTime;
 
+    juce::AudioProcessorValueTreeState parameters;
+
+    std::string selectedInputFormat;
+    std::string selectedOutputFormat;
+    int selectedInputFormatIndex = 0;
+    int selectedOutputFormatIndex = 0;
+
 private:
     juce::UndoManager mUndoManager;
-    juce::AudioProcessorValueTreeState parameters;
     
     // Mach1Decode API
     Mach1Decode<float> m1Decode;
@@ -170,8 +160,6 @@ private:
     std::vector< std::vector<float> > conversionMatrix;
     
     std::vector<std::string> currentFormatOptions;
-    std::string selectedInputFormat;
-    std::string selectedOutputFormat;
     std::atomic<bool> pendingFormatChange{false};
 
     juce::CriticalSection audioCallbackLock;

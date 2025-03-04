@@ -3,4 +3,6 @@ target_sources(${PLUGIN_NAME} PRIVATE    Config.h
                                     PluginEditor.cpp
                                     PluginEditor.h
                                     PluginProcessor.cpp
-                                    PluginProcessor.h)
+                                    PluginProcessor.h
+                                    MainComponent.cpp
+                                    MainComponent.h)

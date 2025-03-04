@@ -2,6 +2,16 @@ cmake_minimum_required(VERSION 3.15.0)
 file(STRINGS VERSION CURRENT_VERSION)
 project(M1-Transcoder VERSION ${CURRENT_VERSION})
 
+# Set C++ standard before including any subdirectories
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Override M1SDK's C++ standard settings
+set(CXX_VERSION 17)
+
+include(FetchContent)
+
 ### IDE Generator pre-config ###
 # Xcode: Disable automatic build scheme generation globally.
 #        Instead, we explicitely specify which targets require schemes.
@@ -24,6 +34,11 @@ option(JUCE_ENABLE_MODULE_SOURCE_GROUPS "Show all module sources in IDE projects
 add_subdirectory(JUCE)
 # add custom modules
 add_subdirectory(Modules)
+
+# Include MSVC overrides after M1SDK
+if(MSVC)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/Modules/m1-sdk/cmake/msvc-overrides.cmake)
+endif()
 
 if(IS_DIRECTORY ${PROJECT_SOURCE_DIR}/JUCE_deps)
     set(VST2_PATH "JUCE_deps/VST_SDK_vst2/VST2_SDK")
@@ -176,6 +191,7 @@ target_link_libraries(${PLUGIN_NAME} PRIVATE
     juce::juce_gui_extra
     juce::juce_opengl
     juce::juce_osc
+    juce_murka
     )
 target_link_libraries(${PLUGIN_NAME} PRIVATE Resources PUBLIC juce::juce_recommended_warning_flags juce::juce_recommended_config_flags juce::juce_recommended_lto_flags)
 

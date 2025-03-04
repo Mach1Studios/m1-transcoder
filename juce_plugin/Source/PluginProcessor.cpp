@@ -228,24 +228,34 @@ bool M1TranscoderAudioProcessor::isBusesLayoutSupported (const BusesLayout& layo
 
 void M1TranscoderAudioProcessor::parameterChanged(const juce::String& parameterID, float newValue)
 {
-    // For safety, convert newValue to int
-    auto index = static_cast<int>(newValue);
-
     if (parameterID == paramInputMode)
     {
         auto availableFormats = getMatchingFormatNames(getTotalNumInputChannels());
-        if (index >= 0 && index < static_cast<int>(availableFormats.size()))
+        if (availableFormats.size() > 0)
         {
-            setTranscodeInputFormat(availableFormats[index]);
+            int index = static_cast<int>(newValue);
+            // Ensure index is in valid range
+            if (index >= 0 && index < static_cast<int>(availableFormats.size()))
+            {
+                selectedInputFormatIndex = index;  // Store the index
+                setTranscodeInputFormat(availableFormats[index]);
+            }
         }
         pendingFormatChange = true;
     }
     else if (parameterID == paramOutputMode)
     {
         auto availableFormats = getMatchingFormatNames(getTotalNumOutputChannels());
-        if (index >= 0 && index < static_cast<int>(availableFormats.size()))
+        if (availableFormats.size() > 0)
         {
-            setTranscodeOutputFormat(availableFormats[index]);
+            int index = static_cast<int>(newValue);
+            
+            // Ensure index is in valid range
+            if (index >= 0 && index < static_cast<int>(availableFormats.size()))
+            {
+                selectedOutputFormatIndex = index;  // Store the index
+                setTranscodeOutputFormat(availableFormats[index]);
+            }
         }
         pendingFormatChange = true;
     }
@@ -315,7 +325,7 @@ void M1TranscoderAudioProcessor::setTranscodeOutputFormat(const std::string &nam
 
 void M1TranscoderAudioProcessor::reconfigureAudioDecode() {
     // Setup for Mach1Decode API
-    m1Decode.setPlatformType(Mach1PlatformDefault);
+    m1Decode.setPlatformType(Mach1PlatformType::Mach1PlatformDefault);
     m1Decode.setFilterSpeed(0.99f);
 
     switch (getTotalNumInputChannels()) {
@@ -352,7 +362,6 @@ void M1TranscoderAudioProcessor::reconfigureAudioTranscode() {
         else
         {
             m_transcode_strategy = &M1TranscoderAudioProcessor::nullStrategy;
-
         }
         pendingFormatChange = false;
     }
@@ -373,7 +382,13 @@ juce::AudioProcessorEditor* M1TranscoderAudioProcessor::createEditor()
 void M1TranscoderAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     // Let the ValueTree handle it
-    if (auto xml = parameters.copyState().createXml())
+    auto state = parameters.copyState();
+    
+    // Add our custom properties
+    state.setProperty("selectedInputFormatIndex", selectedInputFormatIndex, nullptr);
+    state.setProperty("selectedOutputFormatIndex", selectedOutputFormatIndex, nullptr);
+    
+    if (auto xml = state.createXml())
         copyXmlToBinary(*xml, destData);
 }
 
@@ -381,7 +396,24 @@ void M1TranscoderAudioProcessor::setStateInformation (const void* data, int size
 {
     // Let the ValueTree handle it
     if (auto xml = getXmlFromBinary(data, sizeInBytes))
-        parameters.replaceState(juce::ValueTree::fromXml(*xml));
+    {
+        auto state = juce::ValueTree::fromXml(*xml);
+        parameters.replaceState(state);
+        
+        // Restore our custom properties
+        selectedInputFormatIndex = state.getProperty("selectedInputFormatIndex", 0);
+        selectedOutputFormatIndex = state.getProperty("selectedOutputFormatIndex", 0);
+        
+        // Update the formats based on restored indices
+        auto availableInputFormats = getMatchingFormatNames(getTotalNumInputChannels());
+        auto availableOutputFormats = getMatchingFormatNames(getTotalNumOutputChannels());
+        
+        if (!availableInputFormats.empty() && selectedInputFormatIndex >= 0 && selectedInputFormatIndex < static_cast<int>(availableInputFormats.size()))
+            setTranscodeInputFormat(availableInputFormats[selectedInputFormatIndex]);
+            
+        if (!availableOutputFormats.empty() && selectedOutputFormatIndex >= 0 && selectedOutputFormatIndex < static_cast<int>(availableOutputFormats.size()))
+            setTranscodeOutputFormat(availableOutputFormats[selectedOutputFormatIndex]);
+    }
 }
 
 //==============================================================================
