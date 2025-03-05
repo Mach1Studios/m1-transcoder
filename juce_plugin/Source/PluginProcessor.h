@@ -96,6 +96,7 @@ public:
     void setTranscodeInputFormat(const std::string &name);
     void setTranscodeOutputFormat(const std::string &name);
 
+    /*
     std::vector<std::string> getMatchingFormatNames(int numChannels) {
         std::vector<std::string> matchingFormatNames;
 
@@ -106,6 +107,68 @@ public:
         }
         return matchingFormatNames;
     }
+    */
+    
+    std::map< int, std::vector<std::string> > matchingInputFormatNamesMap;
+    std::map< std::string, std::map< int, std::vector<std::string> > > matchingOutputFormatNamesMap;
+
+    // get all input formats for a given number of channels or less
+    std::vector<std::string> getMatchingInputFormatNames(int numChannels) {
+        // Check if the numChannels already exists in the map
+        auto it = matchingInputFormatNamesMap.find(numChannels);
+        if (it != matchingInputFormatNamesMap.end()) {
+            // Return the cached result
+            return it->second;
+        }
+        
+        // Calculate the result
+        std::vector<std::string> matchingFormatNames;
+        for (const auto& format : Mach1TranscodeConstants::formats) {
+            if (format.numChannels > 0 && format.numChannels <= numChannels) {
+                matchingFormatNames.push_back(format.name);
+            }
+        }
+        
+        // Cache the result
+        matchingInputFormatNamesMap[numChannels] = matchingFormatNames;
+        
+        return matchingFormatNames;
+    }
+
+    // get all output formats for a given input format and number of channels or less
+    std::vector<std::string> getMatchingOutputFormatNames(std::string inputFormatName, int numChannels) {
+        // Check if the input format and numChannels already exist in the map
+        auto inputFormatIt = matchingOutputFormatNamesMap.find(inputFormatName);
+        if (inputFormatIt != matchingOutputFormatNamesMap.end()) {
+            auto numChannelsIt = inputFormatIt->second.find(numChannels);
+            if (numChannelsIt != inputFormatIt->second.end()) {
+                // Return the cached result
+                return numChannelsIt->second;
+            }
+        }
+        
+        // Calculate the result
+        std::vector<std::string> matchingFormatNames;
+        Mach1Transcode<float> m1TranscodeTemp;
+        
+        // Set the input format based on the inputFormatName parameter
+        m1TranscodeTemp.setInputFormat(m1TranscodeTemp.getFormatFromString(inputFormatName));
+        
+        for (const auto& format : Mach1TranscodeConstants::formats) {
+            if (format.numChannels > 0 && format.numChannels <= numChannels) { // Changed to <= for "max channels"
+                m1TranscodeTemp.setOutputFormat(m1TranscodeTemp.getFormatFromString(format.name));
+                if (m1TranscodeTemp.processConversionPath()) {
+                    matchingFormatNames.push_back(format.name);
+                }
+            }
+        }
+        
+        // Cache the result
+        matchingOutputFormatNamesMap[inputFormatName][numChannels] = matchingFormatNames;
+        
+        return matchingFormatNames;
+    }
+
 
     std::string getDefaultFormatForChannelCount(int numChannels) {
         switch (numChannels) {

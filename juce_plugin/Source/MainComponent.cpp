@@ -1,6 +1,7 @@
 #include "MainComponent.h"
-#include "UI/M1Combobox.h"
 #include "MurkaTypes.h"
+#include "UI/M1DropdownButton.h"
+#include "UI/M1DropdownMenu.h"
 
 MainComponent::MainComponent(M1TranscoderAudioProcessor& p)
     : murka::JuceMurkaBaseComponent(), audioProcessor(p)
@@ -19,16 +20,18 @@ void MainComponent::initialise()
  
     // Setup input mode formats
     int numHostInputChannels = audioProcessor.getBus(true, 0)->getNumberOfChannels();
-    inputFormatsList = audioProcessor.getMatchingFormatNames(numHostInputChannels);
+    inputFormatsList = audioProcessor.getMatchingInputFormatNames(numHostInputChannels);
     
     
     // Setup output mode formats
     int numHostOutputChannels = audioProcessor.getBus(false, 0)->getNumberOfChannels();
-    outputFormatsList = audioProcessor.getMatchingFormatNames(numHostOutputChannels);
+    outputFormatsList = audioProcessor.getMatchingOutputFormatNames(inputFormatsList[audioProcessor.selectedInputFormatIndex], numHostOutputChannels);
 }
 
 void MainComponent::draw()
 {
+    int selectedInputFormatIndex = audioProcessor.selectedInputFormatIndex;
+    int selectedOutputFormatIndex = audioProcessor.selectedOutputFormatIndex;
 
     m.setFontFromRawData(PLUGIN_FONT, BINARYDATA_FONT, BINARYDATA_FONT_SIZE, DEFAULT_FONT_SIZE - 1);
     m.setColor(BACKGROUND_GREY);
@@ -45,7 +48,6 @@ void MainComponent::draw()
 
     // Input mode dropdown button
     auto& inputButton = m.prepare<M1DropdownButton>(murka::MurkaShape(10, 35, getWidth() - 20, 40));
-    int selectedInputFormatIndex = audioProcessor.selectedInputFormatIndex;
     inputButton.withLabel(selectedInputFormatIndex >= 0 && selectedInputFormatIndex < inputFormatsList.size() 
         ? inputFormatsList[selectedInputFormatIndex] 
         : "SELECT");
@@ -74,9 +76,15 @@ void MainComponent::draw()
 
     if (inputMenu.changed) {
         selectedInputFormatIndex = inputMenu.selectedOption;
-        auto* param = dynamic_cast<juce::AudioParameterInt*>(audioProcessor.parameters.getParameter(M1TranscoderAudioProcessor::paramInputMode));
-        if (param) {
-            *param = selectedInputFormatIndex;
+        auto* paramInputMode = dynamic_cast<juce::AudioParameterInt*>(audioProcessor.parameters.getParameter(M1TranscoderAudioProcessor::paramInputMode));
+        if (paramInputMode) {
+            *paramInputMode = selectedInputFormatIndex;
+        }
+
+        selectedOutputFormatIndex = 0;
+        auto* paramOutputMode = dynamic_cast<juce::AudioParameterInt*>(audioProcessor.parameters.getParameter(M1TranscoderAudioProcessor::paramOutputMode));
+        if (paramOutputMode) {
+            *paramOutputMode = selectedOutputFormatIndex;
         }
     }
     
@@ -88,7 +96,6 @@ void MainComponent::draw()
 
     // Output mode dropdown button
     auto& outputButton = m.prepare<M1DropdownButton>(murka::MurkaShape(10, 170, getWidth() - 20, 40));
-    int selectedOutputFormatIndex = audioProcessor.selectedOutputFormatIndex;
     outputButton.withLabel(selectedOutputFormatIndex >= 0 && selectedOutputFormatIndex < outputFormatsList.size() 
         ? outputFormatsList[selectedOutputFormatIndex] 
         : "SELECT");
@@ -118,9 +125,9 @@ void MainComponent::draw()
 
     if (outputMenu.changed) {
         selectedOutputFormatIndex = outputMenu.selectedOption;
-        auto* param = dynamic_cast<juce::AudioParameterInt*>(audioProcessor.parameters.getParameter(M1TranscoderAudioProcessor::paramOutputMode));
-        if (param) {
-            *param = selectedOutputFormatIndex;
+        auto* paramOutputMode = dynamic_cast<juce::AudioParameterInt*>(audioProcessor.parameters.getParameter(M1TranscoderAudioProcessor::paramOutputMode));
+        if (paramOutputMode) {
+            *paramOutputMode = selectedOutputFormatIndex;
         }
     }
 } 

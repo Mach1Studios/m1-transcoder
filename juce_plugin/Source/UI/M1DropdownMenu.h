@@ -52,7 +52,8 @@ public:
 
             int scrollbarWidth = 15;
             float scrollbarHeightRatio = shape.size.y / (options.size() * optionHeight);
-            float scrollbarHeight = scrollbarHeightRatio * shape.size.y;
+            //float scrollbarHeight = scrollbarHeightRatio * shape.size.y;
+            float scrollbarHeight = 15; // Fixed scrollbar height 
             float scrollbarPositionY = (scrollbarOffsetInPixels / maxScrollbarOffset) * (shape.size.y - scrollbarHeight);
 
             MurkaShape scrollbarShape = MurkaShape(shape.size.x - scrollbarWidth, scrollbarPositionY, scrollbarWidth, scrollbarHeight);

@@ -230,31 +230,38 @@ void M1TranscoderAudioProcessor::parameterChanged(const juce::String& parameterI
 {
     if (parameterID == paramInputMode)
     {
-        auto availableFormats = getMatchingFormatNames(getTotalNumInputChannels());
-        if (availableFormats.size() > 0)
+        auto availableInputFormats = getMatchingInputFormatNames(getTotalNumInputChannels());
+
+        if (availableInputFormats.size() > 0)
         {
             int index = static_cast<int>(newValue);
             // Ensure index is in valid range
-            if (index >= 0 && index < static_cast<int>(availableFormats.size()))
+            if (index >= 0 && index < static_cast<int>(availableInputFormats.size()))
             {
                 selectedInputFormatIndex = index;  // Store the index
-                setTranscodeInputFormat(availableFormats[index]);
+                setTranscodeInputFormat(availableInputFormats[index]);
+
+                auto availableOutputFormats = getMatchingOutputFormatNames(availableInputFormats[selectedInputFormatIndex], getTotalNumOutputChannels());
+                selectedOutputFormatIndex = 0;  
+                setTranscodeOutputFormat(availableOutputFormats[selectedOutputFormatIndex]);
             }
         }
         pendingFormatChange = true;
     }
-    else if (parameterID == paramOutputMode)
+    else if (parameterID == paramOutputMode) 
     {
-        auto availableFormats = getMatchingFormatNames(getTotalNumOutputChannels());
-        if (availableFormats.size() > 0)
+        auto availableInputFormats = getMatchingInputFormatNames(getTotalNumInputChannels());
+        auto availableOutputFormats = getMatchingOutputFormatNames(availableInputFormats[selectedInputFormatIndex], getTotalNumOutputChannels());
+
+        if (availableOutputFormats.size() > 0)
         {
             int index = static_cast<int>(newValue);
             
             // Ensure index is in valid range
-            if (index >= 0 && index < static_cast<int>(availableFormats.size()))
+            if (index >= 0 && index < static_cast<int>(availableOutputFormats.size()))
             {
                 selectedOutputFormatIndex = index;  // Store the index
-                setTranscodeOutputFormat(availableFormats[index]);
+                setTranscodeOutputFormat(availableOutputFormats[index]);
             }
         }
         pendingFormatChange = true;
@@ -405,8 +412,8 @@ void M1TranscoderAudioProcessor::setStateInformation (const void* data, int size
         selectedOutputFormatIndex = state.getProperty("selectedOutputFormatIndex", 0);
         
         // Update the formats based on restored indices
-        auto availableInputFormats = getMatchingFormatNames(getTotalNumInputChannels());
-        auto availableOutputFormats = getMatchingFormatNames(getTotalNumOutputChannels());
+        auto availableInputFormats = getMatchingInputFormatNames(getTotalNumInputChannels());
+        auto availableOutputFormats = getMatchingOutputFormatNames(availableInputFormats[selectedInputFormatIndex], getTotalNumOutputChannels());
         
         if (!availableInputFormats.empty() && selectedInputFormatIndex >= 0 && selectedInputFormatIndex < static_cast<int>(availableInputFormats.size()))
             setTranscodeInputFormat(availableInputFormats[selectedInputFormatIndex]);
