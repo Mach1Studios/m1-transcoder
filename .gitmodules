@@ -4,3 +4,12 @@
 [submodule "deps/spatial-media"]
 	path = deps/spatial-media
 	url = git@github.com:google/spatial-media.git
+[submodule "juce_plugin/JUCE"]
+	path = juce_plugin/JUCE
+	url = git@github.com:juce-framework/JUCE.git
+[submodule "juce_plugin/Modules/m1-sdk"]
+	path = juce_plugin/Modules/m1-sdk
+	url = git@github.com:Mach1Studios/m1-sdk.git
+[submodule "juce_plugin/Modules/juce_murka"]
+	path = juce_plugin/Modules/juce_murka
+	url = git@github.com:Kiberchaika/juce_murka.git

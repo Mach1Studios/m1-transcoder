@@ -206,6 +206,9 @@ public:
     int selectedInputFormatIndex = 0;
     int selectedOutputFormatIndex = 0;
 
+    std::vector<float> inputChannelLevels;
+    std::vector<float> outputChannelLevels;
+
 private:
     juce::UndoManager mUndoManager;
     
@@ -230,6 +233,7 @@ private:
 
     void (M1TranscoderAudioProcessor::*m_decode_strategy)(const AudioSourceChannelInfo&);
     void (M1TranscoderAudioProcessor::*m_transcode_strategy)(const AudioSourceChannelInfo&);
+
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (M1TranscoderAudioProcessor)
 };

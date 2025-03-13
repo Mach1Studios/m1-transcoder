@@ -10,8 +10,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Override M1SDK's C++ standard settings
 set(CXX_VERSION 17)
 
-include(FetchContent)
-
 ### IDE Generator pre-config ###
 # Xcode: Disable automatic build scheme generation globally.
 #        Instead, we explicitely specify which targets require schemes.

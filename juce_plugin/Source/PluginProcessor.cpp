@@ -1,11 +1,3 @@
-/*
-  ==============================================================================
-
-    This file contains the basic framework code for a JUCE plugin processor.
-
-  ==============================================================================
-*/
-
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
@@ -302,6 +294,18 @@ void M1TranscoderAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     juce::AudioSourceChannelInfo bufferToFill(&buffer, 0, buffer.getNumSamples());
     (this->*m_transcode_strategy)(bufferToFill);
     //(this->*m_decode_strategy)(bufferToFill);
+
+    // Update input levels
+    inputChannelLevels.resize(buffer.getNumChannels());
+    for (int ch = 0; ch < buffer.getNumChannels(); ch++) {
+        inputChannelLevels[ch] = buffer.getMagnitude(ch, 0, buffer.getNumSamples());
+    }
+    
+    // Update output levels (if processing output)
+    outputChannelLevels.resize(buffer.getNumChannels());
+    for (int ch = 0; ch < buffer.getNumChannels(); ch++) {
+        outputChannelLevels[ch] = buffer.getMagnitude(ch, 0, buffer.getNumSamples());
+    }
 }
 
 std::string M1TranscoderAudioProcessor::getTranscodeInputFormat() const {
