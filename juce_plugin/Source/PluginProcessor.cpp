@@ -298,13 +298,25 @@ void M1TranscoderAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // Update input levels
     inputChannelLevels.resize(buffer.getNumChannels());
     for (int ch = 0; ch < buffer.getNumChannels(); ch++) {
-        inputChannelLevels[ch] = buffer.getMagnitude(ch, 0, buffer.getNumSamples());
+        float level = 0.0f;
+        const float* channelData = buffer.getReadPointer(ch);
+        for (int i = 0; i < buffer.getNumSamples(); i++) {
+            level = std::max(level, std::abs(channelData[i]));
+        }
+        // Smooth the level
+        inputChannelLevels[ch] = 0.7f * inputChannelLevels[ch] + 0.3f * level;
     }
     
-    // Update output levels (if processing output)
+    // Update output levels (using the same buffer after processing)
     outputChannelLevels.resize(buffer.getNumChannels());
     for (int ch = 0; ch < buffer.getNumChannels(); ch++) {
-        outputChannelLevels[ch] = buffer.getMagnitude(ch, 0, buffer.getNumSamples());
+        float level = 0.0f;
+        const float* channelData = buffer.getReadPointer(ch);
+        for (int i = 0; i < buffer.getNumSamples(); i++) {
+            level = std::max(level, std::abs(channelData[i]));
+        }
+        // Smooth the level
+        outputChannelLevels[ch] = 0.7f * outputChannelLevels[ch] + 0.3f * level;
     }
 }
 

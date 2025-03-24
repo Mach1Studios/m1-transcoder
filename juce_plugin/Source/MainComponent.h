@@ -12,6 +12,8 @@ public:
 
     void initialise() override;
     void draw() override;
+    void drawChannelMeters();
+    void drawArrow(float startX, float startY, float endX, float endY, float arrowSize);
 
 private:
     // This reference is provided as a quick way to access the processor object

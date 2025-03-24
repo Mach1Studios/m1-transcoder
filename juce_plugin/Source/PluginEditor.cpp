@@ -5,9 +5,8 @@
 M1TranscoderAudioProcessorEditor::M1TranscoderAudioProcessorEditor (M1TranscoderAudioProcessor& p)
     : AudioProcessorEditor (&p), audioProcessor (p)
 {
-    // Make sure that before the constructor has finished, you've set the
-    // editor's size to whatever you need it to be.
-    setSize(400, 300);
+    // Make the window larger to accommodate all UI elements
+    setSize(800, 500);
 
     // UI component
     mainComponent = new MainComponent(p);
