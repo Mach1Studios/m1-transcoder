@@ -1,5 +1,6 @@
 #include "MainComponent.h"
 #include "MurkaTypes.h"
+#include "UI/M1Label.h"
 #include "UI/M1DropdownButton.h"
 #include "UI/M1DropdownMenu.h"
 #include "UI/M1CircleMeter.h"
@@ -20,11 +21,11 @@ MainComponent::~MainComponent()
 void MainComponent::initialise()
 {
     JuceMurkaBaseComponent::initialise();
- 
+    m1logo.loadFromRawData(BinaryData::mach1logo_png, BinaryData::mach1logo_pngSize);
+
     // Setup input mode formats
     int numHostInputChannels = audioProcessor.getBus(true, 0)->getNumberOfChannels();
     inputFormatsList = audioProcessor.getMatchingInputFormatNames(numHostInputChannels);
-    
     
     // Setup output mode formats
     int numHostOutputChannels = audioProcessor.getBus(false, 0)->getNumberOfChannels();
@@ -36,7 +37,7 @@ void MainComponent::draw()
     int selectedInputFormatIndex = audioProcessor.selectedInputFormatIndex;
     int selectedOutputFormatIndex = audioProcessor.selectedOutputFormatIndex;
 
-    m.setFontFromRawData(PLUGIN_FONT, BINARYDATA_FONT, BINARYDATA_FONT_SIZE, DEFAULT_FONT_SIZE - 1);
+    m.setFontFromRawData(PLUGIN_FONT, BINARYDATA_FONT, BINARYDATA_FONT_SIZE, DEFAULT_FONT_SIZE - 3);
     m.setColor(BACKGROUND_GREY);
     m.clear();
     m.setLineWidth(2);
@@ -44,15 +45,15 @@ void MainComponent::draw()
     m.setColor(ENABLED_PARAM);
  
     // Layout input section
-    auto& inputLabel = m.prepare<murka::Label>(murka::MurkaShape(20, 20, getWidth() / 3 - 40, 30));
+    auto& inputLabel = m.prepare<murka::Label>(murka::MurkaShape(20, 20, getWidth() / 4 - 40, 30));
     inputLabel.label = "INPUT";
     inputLabel.alignment = TextAlignment::TEXT_LEFT;
     inputLabel.draw();
 
     // Input format scrollable list - make it narrower to leave room for meters
-    auto& inputList = m.prepare<M1ScrollableList>(murka::MurkaShape(20, 60, getWidth() / 3 - 40, getHeight() - 120));
+    auto& inputList = m.prepare<M1ScrollableList>(murka::MurkaShape(20, 40, getWidth() / 3 - 40, getHeight() - 100));
     inputList.withOptions(inputFormatsList)
-        .withFontSize(DEFAULT_FONT_SIZE)
+        .withFontSize(DEFAULT_FONT_SIZE - 4)
         .withSelectedIndex(selectedInputFormatIndex)
         .withHighlightColor(MurkaColor(ENABLED_PARAM))
         .withTextColor(MurkaColor(LABEL_TEXT_COLOR))
@@ -75,15 +76,16 @@ void MainComponent::draw()
     }
     
     // Layout output section
+    m.setFontFromRawData(PLUGIN_FONT, BINARYDATA_FONT, BINARYDATA_FONT_SIZE, DEFAULT_FONT_SIZE - 3);
     auto& outputLabel = m.prepare<murka::Label>(murka::MurkaShape(2 * getWidth() / 3 + 20, 20, getWidth() / 3 - 40, 30));
     outputLabel.label = "OUTPUT";
     outputLabel.alignment = TextAlignment::TEXT_LEFT;
     outputLabel.draw();
 
     // Output format scrollable list - make it narrower to leave room for meters
-    auto& outputList = m.prepare<M1ScrollableList>(murka::MurkaShape(2 * getWidth() / 3 + 20, 60, getWidth() / 3 - 40, getHeight() - 120));
+    auto& outputList = m.prepare<M1ScrollableList>(murka::MurkaShape(2 * getWidth() / 3 + 20, 40, getWidth() / 3 - 40, getHeight() - 100));
     outputList.withOptions(outputFormatsList)
-        .withFontSize(DEFAULT_FONT_SIZE)
+        .withFontSize(DEFAULT_FONT_SIZE - 4)
         .withSelectedIndex(selectedOutputFormatIndex)
         .withHighlightColor(MurkaColor(ENABLED_PARAM))
         .withTextColor(MurkaColor(LABEL_TEXT_COLOR))
@@ -104,7 +106,22 @@ void MainComponent::draw()
     
     // Draw arrow in the center
     m.setColor(ENABLED_PARAM);
-    drawArrow(getWidth() / 2 - 20, getHeight() / 2, getWidth() / 2 + 20, getHeight() / 2, 10);
+    drawArrow(getWidth() / 2 - 5, getHeight() / 2, getWidth() / 2 + 5, getHeight() / 2, 5);
+    
+    /// Transcoder label
+    m.setColor(ENABLED_PARAM);
+    m.setFontFromRawData(PLUGIN_FONT, BINARYDATA_FONT, BINARYDATA_FONT_SIZE, DEFAULT_FONT_SIZE - 5);
+    int labelYOffset = 26;
+    auto& transcoderLabel = m.prepare<M1Label>(MurkaShape(m.getSize().width() - 100, m.getSize().height() - labelYOffset, 80, 20));
+
+    transcoderLabel.label = "TRANSCODER";
+    transcoderLabel.alignment = TEXT_CENTER;
+    transcoderLabel.enabled = false;
+    transcoderLabel.highlighted = false;
+    transcoderLabel.draw();
+
+    m.setColor(ENABLED_PARAM);
+    m.drawImage(m1logo, 25, m.getSize().height() - labelYOffset, 161 / 4, 39 / 4);
 }
 
 void MainComponent::drawArrow(float startX, float startY, float endX, float endY, float arrowSize)
@@ -158,11 +175,11 @@ void MainComponent::drawChannelMeters()
         audioProcessor.outputChannelLevels.resize(outputChannels, 0.0f);
     }
     
-    // Calculate grid layout for input meters
-    int inputRows = std::min(6, inputChannels);
-    int inputCols = (inputChannels + inputRows - 1) / inputRows; // Ceiling division
-    float inputMeterSize = 30.0f;
-    float inputSpacing = 10.0f;
+    // Calculate grid layout for input meters - make them smaller
+    int inputCols = std::min(4, inputChannels);
+    int inputRows = (inputChannels + inputCols - 1) / inputCols; // Ceiling division
+    float inputMeterSize = 8.0f;
+    float inputSpacing = 5.0f;
     float inputStartX = getWidth() / 3 + 20;
     float inputStartY = getHeight() / 2 - (inputRows * (inputMeterSize + inputSpacing)) / 2;
     
@@ -176,15 +193,15 @@ void MainComponent::drawChannelMeters()
         auto& meter = m.prepare<M1CircleMeter>(murka::MurkaShape(x, y, inputMeterSize, inputMeterSize));
         meter.withLevel(i < audioProcessor.inputChannelLevels.size() ? audioProcessor.inputChannelLevels[i] : 0.0f)
             .withColor(MurkaColor(ENABLED_PARAM))
-            .withChannelNumber(i, true);
+            .withChannelNumber(i, false); // Don't show numbers to keep it clean
         meter.draw();
     }
     
-    // Calculate grid layout for output meters
-    int outputRows = std::min(6, outputChannels);
-    int outputCols = (outputChannels + outputRows - 1) / outputRows; // Ceiling division
-    float outputMeterSize = 30.0f;
-    float outputSpacing = 10.0f;
+    // Calculate grid layout for output meters - make them smaller
+    int outputCols = std::min(4, outputChannels);
+    int outputRows = (outputChannels + outputCols - 1) / outputCols; // Ceiling division
+    float outputMeterSize = 8.0f;
+    float outputSpacing = 5.0f;
     float outputStartX = 2 * getWidth() / 3 - 20 - outputCols * (outputMeterSize + outputSpacing);
     float outputStartY = getHeight() / 2 - (outputRows * (outputMeterSize + outputSpacing)) / 2;
     
@@ -198,7 +215,7 @@ void MainComponent::drawChannelMeters()
         auto& meter = m.prepare<M1CircleMeter>(murka::MurkaShape(x, y, outputMeterSize, outputMeterSize));
         meter.withLevel(i < audioProcessor.outputChannelLevels.size() ? audioProcessor.outputChannelLevels[i] : 0.0f)
             .withColor(MurkaColor(ENABLED_PARAM))
-            .withChannelNumber(i, true);
+            .withChannelNumber(i, false); // Don't show numbers to keep it clean
         meter.draw();
     }
 } 

@@ -18,7 +18,9 @@ public:
 private:
     // This reference is provided as a quick way to access the processor object
     M1TranscoderAudioProcessor& audioProcessor;
-   
+
+    MurImage m1logo;
+
     std::vector<std::string> inputFormatsList;
     std::vector<std::string> outputFormatsList;
    

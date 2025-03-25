@@ -6,7 +6,7 @@ M1TranscoderAudioProcessorEditor::M1TranscoderAudioProcessorEditor (M1Transcoder
     : AudioProcessorEditor (&p), audioProcessor (p)
 {
     // Make the window larger to accommodate all UI elements
-    setSize(800, 500);
+    setSize(650, 400);
 
     // UI component
     mainComponent = new MainComponent(p);

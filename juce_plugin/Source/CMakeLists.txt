@@ -6,6 +6,7 @@ target_sources(${PLUGIN_NAME} PRIVATE    Config.h
                                     PluginProcessor.h
                                     MainComponent.cpp
                                     MainComponent.h
+                                    UI/M1Label.h
                                     UI/M1Checkbox.h
                                     UI/M1CircleMeter.h
                                     UI/M1DropdownButton.h
