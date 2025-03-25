@@ -51,14 +51,25 @@ public:
 
             if (hoveredAnOption || i == selectedIndex)
             {
+                // Hover option coloring
                 MurkaColor highlightColorWithAlpha = highlightColor;
                 if (!hoveredAnOption && i == selectedIndex) {
-                    highlightColorWithAlpha.setAlpha(0.5f);
+                    // Selected but not hovered - use a distinct color
+                    highlightColorWithAlpha.setAlpha(0.3f);
+                    m.setColor(highlightColorWithAlpha);
+                    m.drawRectangle(1, i * optionHeight - scrollbarOffsetInPixels, shape.size.x - 2, optionHeight);
+                    
+                    // Use normal text color for selected but not hovered
+                    m.setColor(textColor);
+                } else {
+                    // Hovered (whether selected or not) - use full highlight
+                    m.setColor(highlightColorWithAlpha);
+                    m.drawRectangle(1, i * optionHeight - scrollbarOffsetInPixels, shape.size.x - 2, optionHeight);
+                    
+                    // Use dark text for hovered items
+                    m.setColor(MurkaColor(BACKGROUND_GREY));
                 }
-                m.setColor(highlightColorWithAlpha);
-                
-                m.drawRectangle(1, i * optionHeight - scrollbarOffsetInPixels, shape.size.x - 2, optionHeight);
-                m.setColor(textColor);
+
                 m.setFontFromRawData(PLUGIN_FONT, BINARYDATA_FONT, BINARYDATA_FONT_SIZE, fontSize);
                 juceFontStash::Rectangle label_box = m.getCurrentFont()->getStringBoundingBox(options[i], 0, 0);
                 m.prepare<murka::Label>({ labelPadding_x, (optionHeight * i) + optionHeight / 2 - label_box.height / 2 - scrollbarOffsetInPixels, 
