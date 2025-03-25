@@ -290,6 +290,13 @@ void M1TranscoderAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         reconfigureAudioDecode();
     }
 
+    // Apply input channel mutes
+    for (int ch = 0; ch < buffer.getNumChannels(); ch++) {
+        if (ch < inputChannelMutes.size() && inputChannelMutes[ch]) {
+            buffer.clear(ch, 0, buffer.getNumSamples());
+        }
+    }
+
     // Processing loop
     juce::AudioSourceChannelInfo bufferToFill(&buffer, 0, buffer.getNumSamples());
     (this->*m_transcode_strategy)(bufferToFill);
@@ -317,6 +324,13 @@ void M1TranscoderAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         }
         // Smooth the level
         outputChannelLevels[ch] = 0.7f * outputChannelLevels[ch] + 0.3f * level;
+    }
+
+    // After processing, add this code to apply output channel mutes
+    for (int ch = 0; ch < buffer.getNumChannels(); ch++) {
+        if (ch < outputChannelMutes.size() && outputChannelMutes[ch]) {
+            buffer.clear(ch, 0, buffer.getNumSamples());
+        }
     }
 }
 

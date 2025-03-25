@@ -208,6 +208,8 @@ public:
 
     std::vector<float> inputChannelLevels;
     std::vector<float> outputChannelLevels;
+    std::vector<bool> inputChannelMutes;
+    std::vector<bool> outputChannelMutes;
 
 private:
     juce::UndoManager mUndoManager;

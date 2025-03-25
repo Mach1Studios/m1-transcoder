@@ -167,12 +167,18 @@ void MainComponent::drawChannelMeters()
     inputChannels = std::max(1, inputChannels);
     outputChannels = std::max(1, outputChannels);
     
-    // Make sure we have level data
+    // Make sure we have level data and mute states
     if (audioProcessor.inputChannelLevels.size() < inputChannels) {
         audioProcessor.inputChannelLevels.resize(inputChannels, 0.0f);
     }
     if (audioProcessor.outputChannelLevels.size() < outputChannels) {
         audioProcessor.outputChannelLevels.resize(outputChannels, 0.0f);
+    }
+    if (audioProcessor.inputChannelMutes.size() < inputChannels) {
+        audioProcessor.inputChannelMutes.resize(inputChannels, false);
+    }
+    if (audioProcessor.outputChannelMutes.size() < outputChannels) {
+        audioProcessor.outputChannelMutes.resize(outputChannels, false);
     }
     
     // Calculate grid layout for input meters - make them smaller
@@ -193,8 +199,15 @@ void MainComponent::drawChannelMeters()
         auto& meter = m.prepare<M1CircleMeter>(murka::MurkaShape(x, y, inputMeterSize, inputMeterSize));
         meter.withLevel(i < audioProcessor.inputChannelLevels.size() ? audioProcessor.inputChannelLevels[i] : 0.0f)
             .withColor(MurkaColor(ENABLED_PARAM))
-            .withChannelNumber(i, false); // Don't show numbers to keep it clean
+            .withChannelNumber(i, false)
+            .withMuted(audioProcessor.inputChannelMutes[i])
+            .asInput(true);
         meter.draw();
+        
+        // Check if meter was clicked to toggle mute
+        if (meter) {
+            audioProcessor.inputChannelMutes[i] = meter.muted;
+        }
     }
     
     // Calculate grid layout for output meters - make them smaller
@@ -215,7 +228,14 @@ void MainComponent::drawChannelMeters()
         auto& meter = m.prepare<M1CircleMeter>(murka::MurkaShape(x, y, outputMeterSize, outputMeterSize));
         meter.withLevel(i < audioProcessor.outputChannelLevels.size() ? audioProcessor.outputChannelLevels[i] : 0.0f)
             .withColor(MurkaColor(ENABLED_PARAM))
-            .withChannelNumber(i, false); // Don't show numbers to keep it clean
+            .withChannelNumber(i, false)
+            .withMuted(audioProcessor.outputChannelMutes[i])
+            .asInput(false);
         meter.draw();
+        
+        // Check if meter was clicked to toggle mute
+        if (meter) {
+            audioProcessor.outputChannelMutes[i] = meter.muted;
+        }
     }
 } 
