@@ -52,22 +52,25 @@ public:
             if (hoveredAnOption || i == selectedIndex)
             {
                 // Hover option coloring
-                MurkaColor highlightColorWithAlpha = highlightColor;
-                if (!hoveredAnOption && i == selectedIndex) {
-                    // Selected but not hovered - use a distinct color
-                    highlightColorWithAlpha.setAlpha(0.3f);
-                    m.setColor(highlightColorWithAlpha);
-                    m.drawRectangle(1, i * optionHeight - scrollbarOffsetInPixels, shape.size.x - 2, optionHeight);
-                    
-                    // Use normal text color for selected but not hovered
-                    m.setColor(textColor);
-                } else {
-                    // Hovered (whether selected or not) - use full highlight
-                    m.setColor(highlightColorWithAlpha);
+                MurkaColor colorToUse;
+                
+                if (hoveredAnOption) {
+                    // Hovered item gets highlight color
+                    colorToUse = highlightColor;
+                    m.setColor(colorToUse);
                     m.drawRectangle(1, i * optionHeight - scrollbarOffsetInPixels, shape.size.x - 2, optionHeight);
                     
                     // Use dark text for hovered items
                     m.setColor(MurkaColor(BACKGROUND_GREY));
+                } else if (i == selectedIndex) {
+                    // Selected but not hovered - use the special selected color
+                    colorToUse = selectedColor;
+                    m.setColor(colorToUse);
+                    float shrink_offset = 3; // used to shrink selected inset box
+                    m.drawRectangle(shrink_offset, i * optionHeight - scrollbarOffsetInPixels + shrink_offset, shape.size.x - shrink_offset*2, optionHeight - shrink_offset*2);
+                    
+                    // Use normal text color for selected but not hovered
+                    m.setColor(textColor);
                 }
 
                 m.setFontFromRawData(PLUGIN_FONT, BINARYDATA_FONT, BINARYDATA_FONT_SIZE, fontSize);
@@ -163,6 +166,7 @@ public:
     MurkaColor textColor = MurkaColor(LABEL_TEXT_COLOR);
     MurkaColor backgroundColor = MurkaColor(BACKGROUND_GREY);
     MurkaColor outlineColor = MurkaColor(ENABLED_PARAM);
+    MurkaColor selectedColor = MurkaColor(80, 80, 80); // Darker grey for selected items
     TextAlignment textAlignment = TEXT_LEFT;
 
     M1ScrollableList& withSelectedIndex(int index)
@@ -204,6 +208,12 @@ public:
     M1ScrollableList& withOptions(std::vector<std::string> options_)
     {
         options = options_;
+        return *this;
+    }
+
+    M1ScrollableList& withSelectedColor(MurkaColor color)
+    {
+        selectedColor = color;
         return *this;
     }
 }; 

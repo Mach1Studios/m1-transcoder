@@ -58,7 +58,8 @@ void MainComponent::draw()
         .withHighlightColor(MurkaColor(ENABLED_PARAM))
         .withTextColor(MurkaColor(LABEL_TEXT_COLOR))
         .withBackgroundColor(MurkaColor(BACKGROUND_GREY))
-        .withOutlineColor(MurkaColor(ENABLED_PARAM));
+        .withOutlineColor(MurkaColor(ENABLED_PARAM))
+        .withSelectedColor(MurkaColor(GRID_LINES_2));
     inputList.draw();
 
     if (inputList.changed) {
@@ -90,7 +91,8 @@ void MainComponent::draw()
         .withHighlightColor(MurkaColor(ENABLED_PARAM))
         .withTextColor(MurkaColor(LABEL_TEXT_COLOR))
         .withBackgroundColor(MurkaColor(BACKGROUND_GREY))
-        .withOutlineColor(MurkaColor(ENABLED_PARAM));
+        .withOutlineColor(MurkaColor(ENABLED_PARAM))
+        .withSelectedColor(MurkaColor(GRID_LINES_2));
     outputList.draw();
 
     if (outputList.changed) {
@@ -100,6 +102,26 @@ void MainComponent::draw()
             *paramOutputMode = selectedOutputFormatIndex;
         }
     }
+    
+    // Get current format names for labels
+    std::string inputFormatName = audioProcessor.getTranscodeInputFormat();
+    std::string outputFormatName = audioProcessor.getTranscodeOutputFormat();
+    
+    // Draw format labels above the meter sections
+    m.setColor(ENABLED_PARAM);
+    m.setFontFromRawData(PLUGIN_FONT, BINARYDATA_FONT, BINARYDATA_FONT_SIZE, DEFAULT_FONT_SIZE - 4);
+    
+    // Input format label
+    auto& currentInputFormatLabel = m.prepare<murka::Label>(murka::MurkaShape(getWidth() / 3 + 10, getHeight() / 2 - 40, getWidth() / 6 - 20, 20));
+    currentInputFormatLabel.label = inputFormatName;
+    currentInputFormatLabel.alignment = TextAlignment::TEXT_CENTER;
+    currentInputFormatLabel.draw();
+    
+    // Output format label
+    auto& currentOutputFormatLabel = m.prepare<murka::Label>(murka::MurkaShape(getWidth() / 2 + 10, getHeight() / 2 - 40, getWidth() / 6 - 20, 20));
+    currentOutputFormatLabel.label = outputFormatName;
+    currentOutputFormatLabel.alignment = TextAlignment::TEXT_CENTER;
+    currentOutputFormatLabel.draw();
     
     // Draw channel meters in the center
     drawChannelMeters();
