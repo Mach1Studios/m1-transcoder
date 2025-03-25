@@ -71,7 +71,7 @@ void MainComponent::draw()
 
         selectedOutputFormatIndex = 0;
         auto* paramOutputMode = dynamic_cast<juce::AudioParameterInt*>(audioProcessor.parameters.getParameter(M1TranscoderAudioProcessor::paramOutputMode));
-        if (paramOutputMode) {
+        if (paramOutputMode && !outputFormatsList.empty()) {
             *paramOutputMode = selectedOutputFormatIndex;
         }
     }

@@ -234,8 +234,22 @@ void M1TranscoderAudioProcessor::parameterChanged(const juce::String& parameterI
                 setTranscodeInputFormat(availableInputFormats[index]);
 
                 auto availableOutputFormats = getMatchingOutputFormatNames(availableInputFormats[selectedInputFormatIndex], getTotalNumOutputChannels());
-                selectedOutputFormatIndex = 0;  
-                setTranscodeOutputFormat(availableOutputFormats[selectedOutputFormatIndex]);
+                
+                // Check if there are any compatible output formats
+                if (availableOutputFormats.size() > 0) {
+                    selectedOutputFormatIndex = 0;  
+                    setTranscodeOutputFormat(availableOutputFormats[selectedOutputFormatIndex]);
+                } else {
+                    // No compatible output formats found - handle this case
+                    selectedOutputFormatIndex = 0;
+                    // Don't try to set an output format if none are available
+                    // Just show an error message
+                    errorMessage = "No compatible output formats";
+                    errorMessageInfo = "The selected input format has no compatible output formats for the current channel configuration.";
+                    showErrorPopup = true;
+                    errorStartTime = std::chrono::steady_clock::now();
+                    errorOpacity = 1.0f;
+                }
             }
         }
         pendingFormatChange = true;
