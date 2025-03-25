@@ -144,6 +144,22 @@ void MainComponent::draw()
 
     m.setColor(ENABLED_PARAM);
     m.drawImage(m1logo, 25, m.getSize().height() - labelYOffset, 161 / 4, 39 / 4);
+    
+    // Draw the alert if active
+    if (hasActiveAlert)
+    {
+        auto& alertModal = m.prepare<M1AlertComponent>(MurkaShape(30, 0, 400, 310)); // center of yaw dial
+        alertModal.alertActive = murkaAlert.alertActive;
+        alertModal.alert = murkaAlert.alert;
+        alertModal.alertWidth = 400;
+        alertModal.alertHeight = 250;
+        alertModal.onDismiss = [this]()
+        {
+            murkaAlert.alertActive = false;
+            hasActiveAlert = false;
+        };
+        alertModal.draw();
+    }
 }
 
 void MainComponent::drawArrow(float startX, float startY, float endX, float endY, float arrowSize)
@@ -261,3 +277,13 @@ void MainComponent::drawChannelMeters()
         }
     }
 } 
+
+void MainComponent::postAlert(const Mach1::AlertData& alert)
+{
+    currentAlert = alert;
+    murkaAlert.alertActive = true;
+    murkaAlert.alert.title = currentAlert.title;
+    murkaAlert.alert.message = currentAlert.message;
+    murkaAlert.alert.buttonText = currentAlert.buttonText;
+    hasActiveAlert = true;
+}

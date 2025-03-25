@@ -201,8 +201,8 @@ public:
 
     juce::AudioProcessorValueTreeState parameters;
 
-    std::string selectedInputFormat;
-    std::string selectedOutputFormat;
+    std::string selectedInputFormat = "1.0";
+    std::string selectedOutputFormat = "1.0";
     int selectedInputFormatIndex = 0;
     int selectedOutputFormatIndex = 0;
 
@@ -210,6 +210,12 @@ public:
     std::vector<float> outputChannelLevels;
     std::vector<bool> inputChannelMutes;
     std::vector<bool> outputChannelMutes;
+
+    
+    // This will be set by the UI or editor so we can notify it of alerts
+    std::function<void(const Mach1::AlertData&)> postAlertToUI;
+    void postAlert(const Mach1::AlertData& alert);
+    std::vector<Mach1::AlertData> pendingAlerts;
 
 private:
     juce::UndoManager mUndoManager;

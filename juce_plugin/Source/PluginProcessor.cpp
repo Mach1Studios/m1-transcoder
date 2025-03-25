@@ -165,6 +165,13 @@ void M1TranscoderAudioProcessor::intermediaryBufferTranscodeStrategy(const Audio
     if (intermediaryBuffer.getNumSamples() != out || intermediaryBuffer.getNumSamples() != sampleCount) {
         intermediaryBuffer.setSize(out, bufferToFill.numSamples);
         intermediaryBuffer.clear();
+        // Display error to user
+        Mach1::AlertData data { "CHANNEL COUNT ERROR", "Invalid channel count for selected formats.", "OK" };
+        postAlert(data);
+        
+        // Switch to null strategy to prevent further crashes
+        m_transcode_strategy = &M1TranscoderAudioProcessor::nullStrategy;
+        return;
     }
 
     std::vector<float*> readPtrs;
@@ -197,10 +204,8 @@ void M1TranscoderAudioProcessor::intermediaryBufferTranscodeStrategy(const Audio
 void M1TranscoderAudioProcessor::nullStrategy(const AudioSourceChannelInfo &bufferToFill)
 {
     // Display error to user
-    showErrorPopup = true;
-    errorMessage = "OUTPUT ERROR";
-    errorMessageInfo = "No valid audio strategy available.";
-    errorStartTime = std::chrono::steady_clock::now();
+    Mach1::AlertData data { "OUTPUT ERROR", "No valid audio strategy available.", "OK" };
+    postAlert(data);
 }
 
 void M1TranscoderAudioProcessor::releaseResources()
@@ -239,22 +244,26 @@ void M1TranscoderAudioProcessor::parameterChanged(const juce::String& parameterI
                 if (availableOutputFormats.size() > 0) {
                     selectedOutputFormatIndex = 0;  
                     setTranscodeOutputFormat(availableOutputFormats[selectedOutputFormatIndex]);
+                    
+                    // Verify that the conversion path is valid
+                    if (!m1Transcode.processConversionPath()) {
+                        // No valid conversion path - show error
+                        Mach1::AlertData data { "Invalid conversion path", "Cannot convert between selected formats.", "OK" };
+                        postAlert(data);
+                    }
                 } else {
                     // No compatible output formats found - handle this case
                     selectedOutputFormatIndex = 0;
                     // Don't try to set an output format if none are available
                     // Just show an error message
-                    errorMessage = "No compatible output formats";
-                    errorMessageInfo = "The selected input format has no compatible output formats for the current channel configuration.";
-                    showErrorPopup = true;
-                    errorStartTime = std::chrono::steady_clock::now();
-                    errorOpacity = 1.0f;
+                    Mach1::AlertData data { "No compatible output formats", "The selected input format has no compatible output formats for the current channel configuration.", "OK" };
+                    postAlert(data);
                 }
             }
         }
         pendingFormatChange = true;
     }
-    else if (parameterID == paramOutputMode) 
+    else if (parameterID == paramOutputMode)
     {
         auto availableInputFormats = getMatchingInputFormatNames(getTotalNumInputChannels());
         auto availableOutputFormats = getMatchingOutputFormatNames(availableInputFormats[selectedInputFormatIndex], getTotalNumOutputChannels());
@@ -268,6 +277,13 @@ void M1TranscoderAudioProcessor::parameterChanged(const juce::String& parameterI
             {
                 selectedOutputFormatIndex = index;  // Store the index
                 setTranscodeOutputFormat(availableOutputFormats[index]);
+                
+                // Verify that the conversion path is valid
+                if (!m1Transcode.processConversionPath()) {
+                    // No valid conversion path - show error
+                    Mach1::AlertData data { "Invalid conversion path", "Cannot convert between selected formats.", "OK" };
+                    postAlert(data);
+                }
             }
         }
         pendingFormatChange = true;
@@ -426,7 +442,15 @@ bool M1TranscoderAudioProcessor::hasEditor() const
 
 juce::AudioProcessorEditor* M1TranscoderAudioProcessor::createEditor()
 {
-    return new M1TranscoderAudioProcessorEditor (*this);
+    auto* editor = new M1TranscoderAudioProcessorEditor(*this);
+
+    // When the processor sees a new alert, tell the editor to display it
+    postAlertToUI = [editor](const Mach1::AlertData& a)
+    {
+        editor->mainComponent->postAlert(a);
+    };
+    
+    return editor;
 }
 
 //==============================================================================
@@ -472,4 +496,14 @@ void M1TranscoderAudioProcessor::setStateInformation (const void* data, int size
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new M1TranscoderAudioProcessor();
+}
+
+void M1TranscoderAudioProcessor::postAlert(const Mach1::AlertData& alert)
+{
+    if (postAlertToUI) {
+        postAlertToUI(alert);
+    } else {
+        pendingAlerts.push_back(alert); // Store for later
+        DBG("Stored alert for UI. Total pending: " + juce::String(pendingAlerts.size()));
+    }
 }
