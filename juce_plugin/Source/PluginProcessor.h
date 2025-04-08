@@ -211,6 +211,43 @@ public:
     std::vector<bool> inputChannelMutes;
     std::vector<bool> outputChannelMutes;
 
+    // Add this method to get compatible output formats (those with valid conversion paths)
+    std::vector<std::string> getCompatibleOutputFormats(const std::string& inputFormat, int numChannels) {
+        std::vector<std::string> compatibleFormats;
+        
+        // First get all potential output formats that match the channel count
+        std::vector<std::string> potentialFormats = getMatchingOutputFormatNames(inputFormat, numChannels);
+        
+        // Save current formats
+        std::string currentInput = selectedInputFormat;
+        std::string currentOutput = selectedOutputFormat;
+        
+        // Create a temporary Mach1Transcode instance to avoid messing with the main one
+        Mach1Transcode<float> tempTranscode;
+        
+        // Test each potential format for a valid conversion path
+        for (const auto& outputFormat : potentialFormats) {
+            try {
+                // Temporarily set formats
+                tempTranscode.setInputFormat(tempTranscode.getFormatFromString(inputFormat));
+                tempTranscode.setOutputFormat(tempTranscode.getFormatFromString(outputFormat));
+                
+                // Check if conversion path is valid
+                if (tempTranscode.processConversionPath()) {
+                    // Double check by getting the path
+                    auto path = tempTranscode.getFormatConversionPath();
+                    if (path.size() >= 2) {
+                        compatibleFormats.push_back(outputFormat);
+                    }
+                }
+            } catch (...) {
+                // Skip this format if any exception occurs
+                continue;
+            }
+        }
+        
+        return compatibleFormats;
+    }
     
     // This will be set by the UI or editor so we can notify it of alerts
     std::function<void(const Mach1::AlertData&)> postAlertToUI;
@@ -241,6 +278,9 @@ private:
 
     void (M1TranscoderAudioProcessor::*m_decode_strategy)(const AudioSourceChannelInfo&);
     void (M1TranscoderAudioProcessor::*m_transcode_strategy)(const AudioSourceChannelInfo&);
+
+    juce::CriticalSection transcodeProcessLock;
+    bool safeProcessConversion(float** inBufs, float** outBufs, int numSamples);
 
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (M1TranscoderAudioProcessor)

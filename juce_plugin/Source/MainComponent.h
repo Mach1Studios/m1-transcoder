@@ -17,6 +17,8 @@ public:
     void drawChannelMeters();
     void drawArrow(float startX, float startY, float endX, float endY, float arrowSize);
     
+    void updateFormatLists();
+    
     void showAlert(const std::string& title, const std::string& message, const std::string& buttonText = "OK");
     void postAlert(const Mach1::AlertData& alert); // Adds a new alert to the queue
 
@@ -28,6 +30,8 @@ private:
 
     std::vector<std::string> inputFormatsList;
     std::vector<std::string> outputFormatsList;
+    
+    std::vector<std::string> compatibleOutputFormats;
     
     M1AlertComponent murkaAlert;
     juce::OwnedArray<Mach1::AlertData> alertQueue; // queue for alerts

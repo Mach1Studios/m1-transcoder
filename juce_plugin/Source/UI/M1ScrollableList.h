@@ -49,6 +49,9 @@ public:
             hoveredAnOption *= !coarseHoveredScrollbar;
             hoveredAnything |= hoveredAnOption;
 
+            bool isCompatible = compatibleFormats.empty() || 
+                               std::find(compatibleFormats.begin(), compatibleFormats.end(), options[i]) != compatibleFormats.end();
+
             if (hoveredAnOption || i == selectedIndex)
             {
                 // Hover option coloring
@@ -73,6 +76,14 @@ public:
                     m.setColor(textColor);
                 }
 
+                if (!isCompatible) {
+                    m.setColor(incompatibleColor); // Use disabled color for incompatible formats
+                } else if (hoveredAnOption) {
+                    m.setColor(MurkaColor(BACKGROUND_GREY)); // Dark text for hovered items
+                } else {
+                    m.setColor(textColor); // Normal text color
+                }
+
                 m.setFontFromRawData(PLUGIN_FONT, BINARYDATA_FONT, BINARYDATA_FONT_SIZE, fontSize);
                 juceFontStash::Rectangle label_box = m.getCurrentFont()->getStringBoundingBox(options[i], 0, 0);
                 m.prepare<murka::Label>({ labelPadding_x, (optionHeight * i) + optionHeight / 2 - label_box.height / 2 - scrollbarOffsetInPixels, 
@@ -83,10 +94,15 @@ public:
 
                 if (hoveredAnOption && mouseDownPressed(0))
                 {
-                    if (selectedIndex != i)
+                    if (isCompatible && selectedIndex != i)
                     {
                         selectedIndex = i;
                         changed = true;
+                    }
+                    else if (!isCompatible)
+                    {
+                        // Don't change selection for incompatible formats
+                        // The click is ignored
                     }
                 }
             }
@@ -169,6 +185,9 @@ public:
     MurkaColor selectedColor = MurkaColor(80, 80, 80); // Darker grey for selected items
     TextAlignment textAlignment = TEXT_LEFT;
 
+    std::vector<std::string> compatibleFormats;
+    MurkaColor incompatibleColor = MurkaColor(DISABLED_PARAM);
+
     M1ScrollableList& withSelectedIndex(int index)
     {
         selectedIndex = index;
@@ -214,6 +233,18 @@ public:
     M1ScrollableList& withSelectedColor(MurkaColor color)
     {
         selectedColor = color;
+        return *this;
+    }
+
+    M1ScrollableList& withCompatibleFormats(const std::vector<std::string>& formats)
+    {
+        compatibleFormats = formats;
+        return *this;
+    }
+
+    M1ScrollableList& withIncompatibleColor(MurkaColor color)
+    {
+        incompatibleColor = color;
         return *this;
     }
 }; 

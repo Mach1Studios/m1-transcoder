@@ -11,6 +11,20 @@ MainComponent::MainComponent(M1TranscoderAudioProcessor& p)
     : murka::JuceMurkaBaseComponent(), audioProcessor(p)
 {
     setSize(getWidth(), getHeight());
+    
+    // Set up alert dismiss callback
+    murkaAlert.onDismiss = [this]() {
+        // remove the top alert from our queue
+        if (alertQueue.size() > 0) {
+            alertQueue.remove(0);
+        }
+        murkaAlert.alertActive = false;
+    };
+
+    audioProcessor.postAlertToUI = [this](const Mach1::AlertData& alert) {
+        this->postAlert(alert);
+    };
+
 }
 
 MainComponent::~MainComponent()
@@ -22,20 +36,23 @@ void MainComponent::initialise()
 {
     JuceMurkaBaseComponent::initialise();
     m1logo.loadFromRawData(BinaryData::mach1logo_png, BinaryData::mach1logo_pngSize);
-
-    // Setup input mode formats
-    int numHostInputChannels = audioProcessor.getBus(true, 0)->getNumberOfChannels();
-    inputFormatsList = audioProcessor.getMatchingInputFormatNames(numHostInputChannels);
     
-    // Setup output mode formats
-    int numHostOutputChannels = audioProcessor.getBus(false, 0)->getNumberOfChannels();
-    outputFormatsList = audioProcessor.getMatchingOutputFormatNames(inputFormatsList[audioProcessor.selectedInputFormatIndex], numHostOutputChannels);
+    // Initialize format lists
+    updateFormatLists();
 }
 
 void MainComponent::draw()
 {
     int selectedInputFormatIndex = audioProcessor.selectedInputFormatIndex;
     int selectedOutputFormatIndex = audioProcessor.selectedOutputFormatIndex;
+
+    // Check if we need to show an error alert
+    if (audioProcessor.showErrorPopup && !hasActiveAlert) {
+        murkaAlert.alertActive = true;
+        murkaAlert.alert.title = audioProcessor.errorMessage;
+        murkaAlert.alert.message = audioProcessor.errorMessageInfo;
+        hasActiveAlert = true;
+    }
 
     m.setFontFromRawData(PLUGIN_FONT, BINARYDATA_FONT, BINARYDATA_FONT_SIZE, DEFAULT_FONT_SIZE - 3);
     m.setColor(BACKGROUND_GREY);
@@ -69,6 +86,9 @@ void MainComponent::draw()
             *paramInputMode = selectedInputFormatIndex;
         }
 
+        // Update the output format list when input format changes
+        updateFormatLists();
+        
         selectedOutputFormatIndex = 0;
         auto* paramOutputMode = dynamic_cast<juce::AudioParameterInt*>(audioProcessor.parameters.getParameter(M1TranscoderAudioProcessor::paramOutputMode));
         if (paramOutputMode && !outputFormatsList.empty()) {
@@ -92,14 +112,27 @@ void MainComponent::draw()
         .withTextColor(MurkaColor(LABEL_TEXT_COLOR))
         .withBackgroundColor(MurkaColor(BACKGROUND_GREY))
         .withOutlineColor(MurkaColor(ENABLED_PARAM))
-        .withSelectedColor(MurkaColor(GRID_LINES_2));
+        .withSelectedColor(MurkaColor(GRID_LINES_2))
+        .withCompatibleFormats(compatibleOutputFormats)  // Pass the list of compatible formats
+        .withIncompatibleColor(MurkaColor(DISABLED_PARAM)); // Use disabled color for incompatible formats
     outputList.draw();
 
     if (outputList.changed) {
-        selectedOutputFormatIndex = outputList.selectedIndex;
-        auto* paramOutputMode = dynamic_cast<juce::AudioParameterInt*>(audioProcessor.parameters.getParameter(M1TranscoderAudioProcessor::paramOutputMode));
-        if (paramOutputMode) {
-            *paramOutputMode = selectedOutputFormatIndex;
+        // Only update if the selected format is compatible
+        if (std::find(compatibleOutputFormats.begin(), compatibleOutputFormats.end(), 
+                     outputFormatsList[outputList.selectedIndex]) != compatibleOutputFormats.end()) {
+            selectedOutputFormatIndex = outputList.selectedIndex;
+            auto* paramOutputMode = dynamic_cast<juce::AudioParameterInt*>(audioProcessor.parameters.getParameter(M1TranscoderAudioProcessor::paramOutputMode));
+            if (paramOutputMode) {
+                *paramOutputMode = selectedOutputFormatIndex;
+            }
+        } else {
+            // Show error for incompatible format
+            audioProcessor.showErrorPopup = true;
+            audioProcessor.errorMessage = "INCOMPATIBLE FORMAT";
+            audioProcessor.errorMessageInfo = "The selected output format is not compatible with the current input format.";
+            audioProcessor.errorStartTime = std::chrono::steady_clock::now();
+            audioProcessor.errorOpacity = 1.0f;
         }
     }
     
@@ -275,6 +308,37 @@ void MainComponent::drawChannelMeters()
         if (meter) {
             audioProcessor.outputChannelMutes[i] = meter.muted;
         }
+    }
+}
+
+void MainComponent::updateFormatLists() {
+    // Get current channel counts
+    int numHostInputChannels = audioProcessor.getBus(true, 0)->getNumberOfChannels();
+    int numHostOutputChannels = audioProcessor.getBus(false, 0)->getNumberOfChannels();
+    
+    // Update input format list
+    inputFormatsList = audioProcessor.getMatchingInputFormatNames(numHostInputChannels);
+    
+    // Make sure selected input format index is valid
+    if (audioProcessor.selectedInputFormatIndex >= inputFormatsList.size()) {
+        audioProcessor.selectedInputFormatIndex = 0;
+    }
+    
+    // Update output format list based on selected input format
+    if (!inputFormatsList.empty()) {
+        std::string selectedInputFormat = inputFormatsList[audioProcessor.selectedInputFormatIndex];
+        outputFormatsList = audioProcessor.getMatchingOutputFormatNames(selectedInputFormat, numHostOutputChannels);
+        
+        // Also get the list of compatible formats (those with valid conversion paths)
+        compatibleOutputFormats = audioProcessor.getCompatibleOutputFormats(selectedInputFormat, numHostOutputChannels);
+    } else {
+        outputFormatsList.clear();
+        compatibleOutputFormats.clear();
+    }
+    
+    // Make sure selected output format index is valid
+    if (audioProcessor.selectedOutputFormatIndex >= outputFormatsList.size()) {
+        audioProcessor.selectedOutputFormatIndex = 0;
     }
 } 
 

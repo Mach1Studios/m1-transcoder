@@ -154,17 +154,29 @@ void M1TranscoderAudioProcessor::intermediaryBufferDecodeStrategy(const AudioSou
 }
 
 void M1TranscoderAudioProcessor::intermediaryBufferTranscodeStrategy(const AudioSourceChannelInfo &bufferToFill) {
-    auto out = m1Transcode.getOutputNumChannels();
-    auto sampleCount = bufferToFill.numSamples;
+    // First, check if we're in a valid state to process
+    if (!bufferToFill.buffer || bufferToFill.numSamples <= 0) {
+        return; // Invalid buffer, just return silently
+    }
 
-    if (out == 0) {
+    // Get input and output channel counts
+    int inChannels = 0;
+    int outChannels = 0;
+    
+    try {
+        inChannels = m1Transcode.getInputNumChannels();
+        outChannels = m1Transcode.getOutputNumChannels();
+    } catch (...) {
+        // If we can't even get channel counts, something is very wrong
+        Mach1::AlertData data { "FORMAT ERROR", "Unable to determine channel counts for selected formats.", "OK" };
+        postAlert(data);
+
+        // Switch to null strategy to prevent further crashes
+        m_transcode_strategy = &M1TranscoderAudioProcessor::nullStrategy;
         return;
     }
 
-    // restructure output buffer
-    if (intermediaryBuffer.getNumSamples() != out || intermediaryBuffer.getNumSamples() != sampleCount) {
-        intermediaryBuffer.setSize(out, bufferToFill.numSamples);
-        intermediaryBuffer.clear();
+    if (inChannels <= 0 || outChannels <= 0) {
         // Display error to user
         Mach1::AlertData data { "CHANNEL COUNT ERROR", "Invalid channel count for selected formats.", "OK" };
         postAlert(data);
@@ -174,30 +186,99 @@ void M1TranscoderAudioProcessor::intermediaryBufferTranscodeStrategy(const Audio
         return;
     }
 
-    std::vector<float*> readPtrs;
-    readPtrs.resize(readBuffer.getNumChannels());
-    for(int i = 0; i < readBuffer.getNumChannels(); i++) {
-        readPtrs[i] = readBuffer.getWritePointer(i); // won't be written to. m1Transcode just expects non-const float**.
-    }
-
-    std::vector<float*> intermediaryPtrs;
-    intermediaryPtrs.resize(intermediaryBuffer.getNumChannels());
-    for(int i = 0; i < intermediaryBuffer.getNumChannels(); i++) {
-        intermediaryPtrs[i] = intermediaryBuffer.getWritePointer(i);
-    }
-
-    try {
-        m1Transcode.processConversion(readPtrs.data(), intermediaryPtrs.data(), sampleCount);
-    } catch (const std::exception& e) {
-        // Log error but don't crash
-        DBG("Transcode error: " << e.what());
-        intermediaryBuffer.clear();
+    // Verify that we have enough channels in our buffers
+    if (readBuffer.getNumChannels() < inChannels) {
+        Mach1::AlertData data { "INPUT CHANNEL ERROR", "Not enough input channels available for the selected format.", "OK" };
+        postAlert(data);
         
-        // Display error to user
-        showErrorPopup = true;
-        errorMessage = "TRANSCODE ERROR";
-        errorMessageInfo = "No valid transcode conversion path found.";
-        errorStartTime = std::chrono::steady_clock::now();
+        // Switch to null strategy to prevent further crashes
+        m_transcode_strategy = &M1TranscoderAudioProcessor::nullStrategy;
+        return;
+    }
+
+    // Verify that the number of samples is reasonable
+    auto sampleCount = bufferToFill.numSamples;
+    if (sampleCount <= 0 || sampleCount > 16384) {
+        Mach1::AlertData data { "BUFFER SIZE ERROR", "Invalid buffer size for processing.", "OK" };
+        postAlert(data);
+        
+        // Switch to null strategy to prevent further crashes
+        m_transcode_strategy = &M1TranscoderAudioProcessor::nullStrategy;
+        return;
+    }
+
+    // Resize output buffer if needed
+    try {
+        if (intermediaryBuffer.getNumChannels() != outChannels || intermediaryBuffer.getNumSamples() != sampleCount) {
+            intermediaryBuffer.setSize(outChannels, sampleCount, false, true, true); // Clear new space
+        }
+    } catch (...) {
+        Mach1::AlertData data { "BUFFER ALLOCATION ERROR", "Failed to allocate buffer for output format.", "OK" };
+        postAlert(data);
+        
+        // Switch to null strategy to prevent further crashes
+        m_transcode_strategy = &M1TranscoderAudioProcessor::nullStrategy;
+        return;
+    }
+
+    // Clear the output buffer before processing
+    intermediaryBuffer.clear();
+
+    // Create safe input pointers
+    std::vector<float*> readPtrs(inChannels, nullptr);
+    static float silentBuffer[16384] = {0}; // Static buffer for safety
+    
+    for (int i = 0; i < inChannels; i++) {
+        if (i < readBuffer.getNumChannels()) {
+            readPtrs[i] = readBuffer.getWritePointer(i);
+        } else {
+            readPtrs[i] = silentBuffer;
+        }
+        
+        // Double-check for null pointers
+        if (readPtrs[i] == nullptr) {
+            readPtrs[i] = silentBuffer;
+        }
+    }
+
+    // Create safe output pointers
+    std::vector<float*> intermediaryPtrs(outChannels, nullptr);
+    for (int i = 0; i < outChannels; i++) {
+        if (i < intermediaryBuffer.getNumChannels()) {
+            intermediaryPtrs[i] = intermediaryBuffer.getWritePointer(i);
+        } else {
+            intermediaryPtrs[i] = silentBuffer;
+        }
+        
+        // Double-check for null pointers
+        if (intermediaryPtrs[i] == nullptr) {
+            intermediaryPtrs[i] = silentBuffer;
+        }
+    }
+
+    // Use our safer process conversion method
+    bool conversionSucceeded = safeProcessConversion(readPtrs.data(), intermediaryPtrs.data(), sampleCount);
+
+    // Only copy to output if conversion succeeded
+    if (conversionSucceeded) {
+        // Copy the processed audio to the output buffer
+        for (int channel = 0; channel < bufferToFill.buffer->getNumChannels() && channel < intermediaryBuffer.getNumChannels(); ++channel) {
+            bufferToFill.buffer->copyFrom(channel, bufferToFill.startSample, 
+                                         intermediaryBuffer.getReadPointer(channel), 
+                                         bufferToFill.numSamples);
+        }
+    } else {
+        // If conversion failed, output silence
+        for (int channel = 0; channel < bufferToFill.buffer->getNumChannels(); ++channel) {
+            bufferToFill.buffer->clear(channel, bufferToFill.startSample, bufferToFill.numSamples);
+        }
+        
+        // Show error
+        Mach1::AlertData data { "TRANSCODE ERROR", "Failed to process audio conversion. Switching to passthrough mode.", "OK" };
+        postAlert(data);
+        
+        // Switch to null strategy to prevent further crashes
+        m_transcode_strategy = &M1TranscoderAudioProcessor::nullStrategy;
     }
 }
 
@@ -496,6 +577,53 @@ void M1TranscoderAudioProcessor::setStateInformation (const void* data, int size
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new M1TranscoderAudioProcessor();
+}
+
+bool M1TranscoderAudioProcessor::safeProcessConversion(float** inBufs, float** outBufs, int numSamples) {
+    // Use a critical section to ensure thread safety
+    const juce::ScopedLock lock(transcodeProcessLock);
+    
+    // Validate inputs
+    if (!inBufs || !outBufs || numSamples <= 0) {
+        return false;
+    }
+    
+    // Check for null pointers in the arrays
+    int inChannels = m1Transcode.getInputNumChannels();
+    int outChannels = m1Transcode.getOutputNumChannels();
+    
+    for (int i = 0; i < inChannels; i++) {
+        if (!inBufs[i]) return false;
+    }
+    
+    for (int i = 0; i < outChannels; i++) {
+        if (!outBufs[i]) return false;
+    }
+    
+    // Verify that the conversion path is valid
+    if (!m1Transcode.processConversionPath()) {
+        return false;
+    }
+    
+    // Get the conversion path to check if it's valid
+    std::vector<int> conversionPath;
+    try {
+        conversionPath = m1Transcode.getFormatConversionPath();
+        if (conversionPath.size() < 2) {
+            // Need at least input and output formats
+            return false;
+        }
+    } catch (...) {
+        return false;
+    }
+    
+    // Now try the actual conversion
+    try {
+        m1Transcode.processConversion(inBufs, outBufs, numSamples);
+        return true;
+    } catch (...) {
+        return false;
+    }
 }
 
 void M1TranscoderAudioProcessor::postAlert(const Mach1::AlertData& alert)
