@@ -114,57 +114,53 @@ public:
 
     // get all input formats for a given number of channels or less
     std::vector<std::string> getMatchingInputFormatNames(int numChannels) {
-        // Check if the numChannels already exists in the map
-        auto it = matchingInputFormatNamesMap.find(numChannels);
-        if (it != matchingInputFormatNamesMap.end()) {
-            // Return the cached result
-            return it->second;
-        }
-        
-        // Calculate the result
         std::vector<std::string> matchingFormatNames;
+        
         for (const auto& format : Mach1TranscodeConstants::formats) {
-            if (format.numChannels > 0 && format.numChannels <= numChannels) {
+            if (format.numChannels == numChannels) {
                 matchingFormatNames.push_back(format.name);
             }
         }
         
-        // Cache the result
-        matchingInputFormatNamesMap[numChannels] = matchingFormatNames;
-        
-        return matchingFormatNames;
-    }
-
-    // get all output formats for a given input format and number of channels or less
-    std::vector<std::string> getMatchingOutputFormatNames(std::string inputFormatName, int numChannels) {
-        // Check if the input format and numChannels already exist in the map
-        auto inputFormatIt = matchingOutputFormatNamesMap.find(inputFormatName);
-        if (inputFormatIt != matchingOutputFormatNamesMap.end()) {
-            auto numChannelsIt = inputFormatIt->second.find(numChannels);
-            if (numChannelsIt != inputFormatIt->second.end()) {
-                // Return the cached result
-                return numChannelsIt->second;
-            }
-        }
-        
-        // Calculate the result
-        std::vector<std::string> matchingFormatNames;
-        Mach1Transcode<float> m1TranscodeTemp;
-        
-        // Set the input format based on the inputFormatName parameter
-        m1TranscodeTemp.setInputFormat(m1TranscodeTemp.getFormatFromString(inputFormatName));
-        
-        for (const auto& format : Mach1TranscodeConstants::formats) {
-            if (format.numChannels > 0 && format.numChannels <= numChannels) { // Changed to <= for "max channels"
-                m1TranscodeTemp.setOutputFormat(m1TranscodeTemp.getFormatFromString(format.name));
-                if (m1TranscodeTemp.processConversionPath()) {
+        if (matchingFormatNames.empty()) {
+            for (const auto& format : Mach1TranscodeConstants::formats) {
+                if (format.numChannels > 0 && format.numChannels <= numChannels) {
                     matchingFormatNames.push_back(format.name);
                 }
             }
         }
         
-        // Cache the result
-        matchingOutputFormatNamesMap[inputFormatName][numChannels] = matchingFormatNames;
+        return matchingFormatNames;
+    }
+
+    // get all output formats for a given input format and number of channels or less
+    std::vector<std::string> getMatchingOutputFormatNames(const std::string& inputFormat, int numChannels) {
+        std::vector<std::string> matchingFormatNames;
+        
+        for (const auto& format : Mach1TranscodeConstants::formats) {
+            if (format.numChannels == numChannels) {
+                if (inputFormat == format.name) {
+                    continue;
+                }
+                
+                try {
+                    Mach1Transcode<float> tempTranscode;
+                    
+                    tempTranscode.setInputFormat(tempTranscode.getFormatFromString(inputFormat));
+                    tempTranscode.setOutputFormat(tempTranscode.getFormatFromString(format.name));
+                    
+                    // Check if conversion path is valid
+                    if (tempTranscode.processConversionPath()) {
+                        auto path = tempTranscode.getFormatConversionPath();
+                        if (path.size() >= 2) {
+                            matchingFormatNames.push_back(format.name);
+                        }
+                    }
+                } catch (...) {
+                    continue;
+                }
+            }
+        }
         
         return matchingFormatNames;
     }
@@ -201,8 +197,8 @@ public:
 
     juce::AudioProcessorValueTreeState parameters;
 
-    std::string selectedInputFormat = "1.0";
-    std::string selectedOutputFormat = "1.0";
+    std::string selectedInputFormat = "";
+    std::string selectedOutputFormat = "";
     int selectedInputFormatIndex = 0;
     int selectedOutputFormatIndex = 0;
 
@@ -211,38 +207,26 @@ public:
     std::vector<bool> inputChannelMutes;
     std::vector<bool> outputChannelMutes;
 
-    // Add this method to get compatible output formats (those with valid conversion paths)
-    std::vector<std::string> getCompatibleOutputFormats(const std::string& inputFormat, int numChannels) {
-        std::vector<std::string> compatibleFormats;
+    std::vector<std::string> getCompatibleOutputFormats(const std::string &inputFormat, int outputChannels) {
+        std::vector<std::string> compatibleFormats = getMatchingOutputFormatNames(inputFormat, outputChannels);
         
-        // First get all potential output formats that match the channel count
-        std::vector<std::string> potentialFormats = getMatchingOutputFormatNames(inputFormat, numChannels);
-        
-        // Save current formats
-        std::string currentInput = selectedInputFormat;
-        std::string currentOutput = selectedOutputFormat;
-        
-        // Create a temporary Mach1Transcode instance to avoid messing with the main one
-        Mach1Transcode<float> tempTranscode;
-        
-        // Test each potential format for a valid conversion path
-        for (const auto& outputFormat : potentialFormats) {
-            try {
-                // Temporarily set formats
-                tempTranscode.setInputFormat(tempTranscode.getFormatFromString(inputFormat));
-                tempTranscode.setOutputFormat(tempTranscode.getFormatFromString(outputFormat));
-                
-                // Check if conversion path is valid
-                if (tempTranscode.processConversionPath()) {
-                    // Double check by getting the path
-                    auto path = tempTranscode.getFormatConversionPath();
-                    if (path.size() >= 2) {
-                        compatibleFormats.push_back(outputFormat);
-                    }
+        if (compatibleFormats.empty()) {
+            int inputChannels = 0;
+            for (const auto& format : Mach1TranscodeConstants::formats) {
+                if (format.name == inputFormat) {
+                    inputChannels = format.numChannels;
+                    break;
                 }
-            } catch (...) {
-                // Skip this format if any exception occurs
-                continue;
+            }
+            
+            if (inputChannels == outputChannels) {
+                return {inputFormat};
+            }
+            
+            for (const auto& format : Mach1TranscodeConstants::formats) {
+                if (format.numChannels == outputChannels) {
+                    return {format.name};
+                }
             }
         }
         
@@ -279,7 +263,7 @@ private:
     void (M1TranscoderAudioProcessor::*m_decode_strategy)(const AudioSourceChannelInfo&);
     void (M1TranscoderAudioProcessor::*m_transcode_strategy)(const AudioSourceChannelInfo&);
 
-    juce::CriticalSection transcodeProcessLock;
+    juce::SpinLock transcodeProcessLock;
     bool safeProcessConversion(float** inBufs, float** outBufs, int numSamples);
 
     //==============================================================================

@@ -43,6 +43,29 @@ void MainComponent::initialise()
 
 void MainComponent::draw()
 {
+    static int lastInputChannels = -1;
+    static int lastOutputChannels = -1;
+    static std::string lastInputFormat = "";
+    static std::string lastOutputFormat = "";
+    
+    int currentInputChannels = audioProcessor.getBus(true, 0)->getNumberOfChannels();
+    int currentOutputChannels = audioProcessor.getBus(false, 0)->getNumberOfChannels();
+    std::string currentInputFormat = audioProcessor.getTranscodeInputFormat();
+    std::string currentOutputFormat = audioProcessor.getTranscodeOutputFormat();
+    
+    if (currentInputChannels != lastInputChannels || 
+        currentOutputChannels != lastOutputChannels ||
+        currentInputFormat != lastInputFormat ||
+        currentOutputFormat != lastOutputFormat) {
+        
+        updateFormatLists();
+        
+        lastInputChannels = currentInputChannels;
+        lastOutputChannels = currentOutputChannels;
+        lastInputFormat = currentInputFormat;
+        lastOutputFormat = currentOutputFormat;
+    }
+    
     int selectedInputFormatIndex = audioProcessor.selectedInputFormatIndex;
     int selectedOutputFormatIndex = audioProcessor.selectedOutputFormatIndex;
 
