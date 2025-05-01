@@ -28,6 +28,10 @@ private:
 
     MurImage m1logo;
 
+    // UI Elements (Consider managing these within your Murka structure if applicable)
+    std::unique_ptr<juce::TextButton> showLessChannelsButton;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> showLessChannelsAttachment;
+
     std::vector<std::string> inputFormatsList;
     std::vector<std::string> outputFormatsList;
     

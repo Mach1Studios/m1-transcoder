@@ -58,6 +58,8 @@ public:
 
     static juce::String paramInputMode;
     static juce::String paramOutputMode;
+    static juce::String paramShowExactInputChannels;
+    static juce::String paramShowExactOutputChannels;
 
     //==============================================================================
     juce::AudioProcessorEditor* createEditor() override;
@@ -96,69 +98,34 @@ public:
     void setTranscodeInputFormat(const std::string &name);
     void setTranscodeOutputFormat(const std::string &name);
 
-    /*
-    std::vector<std::string> getMatchingFormatNames(int numChannels) {
-        std::vector<std::string> matchingFormatNames;
-
-        for (const auto& format : Mach1TranscodeConstants::formats) {
-            if (format.numChannels == numChannels) {
-                matchingFormatNames.push_back(format.name);
-            }
-        }
-        return matchingFormatNames;
-    }
-    */
-    
-    std::map< int, std::vector<std::string> > matchingInputFormatNamesMap;
-    std::map< std::string, std::map< int, std::vector<std::string> > > matchingOutputFormatNamesMap;
-
-    // get all input formats for a given number of channels or less
+    // get all input formats matching channel count criterion
     std::vector<std::string> getMatchingInputFormatNames(int numChannels) {
         std::vector<std::string> matchingFormatNames;
+        bool showExact = parameters.getParameterAsValue(paramShowExactInputChannels).getValue();
         
         for (const auto& format : Mach1TranscodeConstants::formats) {
-            if (format.numChannels == numChannels) {
+            bool channelMatch = showExact ? (format.numChannels == numChannels) 
+                                         : (format.numChannels > 0 && format.numChannels <= numChannels);
+            if (channelMatch) {
                 matchingFormatNames.push_back(format.name);
-            }
-        }
-        
-        if (matchingFormatNames.empty()) {
-            for (const auto& format : Mach1TranscodeConstants::formats) {
-                if (format.numChannels > 0 && format.numChannels <= numChannels) {
-                    matchingFormatNames.push_back(format.name);
-                }
             }
         }
         
         return matchingFormatNames;
     }
 
-    // get all output formats for a given input format and number of channels or less
-    std::vector<std::string> getMatchingOutputFormatNames(const std::string& inputFormat, int numChannels) {
+    // get all output formats matching channel count criterion
+    std::vector<std::string> getMatchingOutputFormatNames(int numChannels) {
         std::vector<std::string> matchingFormatNames;
+        bool showExact = parameters.getParameterAsValue(paramShowExactOutputChannels).getValue();
         
         for (const auto& format : Mach1TranscodeConstants::formats) {
-            if (format.numChannels == numChannels) {
-                if (inputFormat == format.name) {
-                    continue;
-                }
+            bool channelMatch = showExact ? (format.numChannels == numChannels) 
+                                         : (format.numChannels > 0 && format.numChannels <= numChannels);
+                                         
+            if (channelMatch) {
+                matchingFormatNames.push_back(format.name);
                 
-                try {
-                    Mach1Transcode<float> tempTranscode;
-                    
-                    tempTranscode.setInputFormat(tempTranscode.getFormatFromString(inputFormat));
-                    tempTranscode.setOutputFormat(tempTranscode.getFormatFromString(format.name));
-                    
-                    // Check if conversion path is valid
-                    if (tempTranscode.processConversionPath()) {
-                        auto path = tempTranscode.getFormatConversionPath();
-                        if (path.size() >= 2) {
-                            matchingFormatNames.push_back(format.name);
-                        }
-                    }
-                } catch (...) {
-                    continue;
-                }
             }
         }
         
@@ -187,7 +154,6 @@ public:
         }
     }
 
-    // Error display
     bool showErrorPopup = false;
     std::string errorMessage = "";
     std::string errorMessageInfo = "";
@@ -197,8 +163,9 @@ public:
 
     juce::AudioProcessorValueTreeState parameters;
 
-    std::string selectedInputFormat = "";
-    std::string selectedOutputFormat = "";
+    std::string selectedInputFormatName = ""; 
+    std::string selectedOutputFormatName = "";
+    
     int selectedInputFormatIndex = 0;
     int selectedOutputFormatIndex = 0;
 
@@ -208,24 +175,41 @@ public:
     std::vector<bool> outputChannelMutes;
 
     std::vector<std::string> getCompatibleOutputFormats(const std::string &inputFormat, int outputChannels) {
-        std::vector<std::string> compatibleFormats = getMatchingOutputFormatNames(inputFormat, outputChannels);
+        std::vector<std::string> compatibleFormats;
+        if (inputFormat.empty()) {
+            return compatibleFormats;
+        }
+
+        bool showExact = parameters.getParameterAsValue(paramShowExactOutputChannels).getValue();
+        Mach1Transcode<float> tempTranscode;
         
-        if (compatibleFormats.empty()) {
-            int inputChannels = 0;
-            for (const auto& format : Mach1TranscodeConstants::formats) {
-                if (format.name == inputFormat) {
-                    inputChannels = format.numChannels;
-                    break;
+        try {
+            tempTranscode.setInputFormat(tempTranscode.getFormatFromString(inputFormat));
+        } catch (...) {
+            return compatibleFormats;
+        }
+
+        for (const auto& format : Mach1TranscodeConstants::formats) {
+            // Filter by channel count first
+            bool channelMatch = showExact ? (format.numChannels == outputChannels) 
+                                         : (format.numChannels > 0 && format.numChannels <= outputChannels);
+            
+            if (channelMatch) {
+                 // Don't list input format as an output option
+                if (inputFormat == format.name) {
+                    continue; 
                 }
-            }
-            
-            if (inputChannels == outputChannels) {
-                return {inputFormat};
-            }
-            
-            for (const auto& format : Mach1TranscodeConstants::formats) {
-                if (format.numChannels == outputChannels) {
-                    return {format.name};
+
+                try {
+                    tempTranscode.setOutputFormat(tempTranscode.getFormatFromString(format.name));
+                    if (tempTranscode.processConversionPath()) {
+                         auto path = tempTranscode.getFormatConversionPath();
+                        if (path.size() >= 2) { 
+                            compatibleFormats.push_back(format.name);
+                        }
+                    }
+                } catch (...) {
+                    continue;
                 }
             }
         }

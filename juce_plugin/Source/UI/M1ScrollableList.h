@@ -227,6 +227,17 @@ public:
     M1ScrollableList& withOptions(std::vector<std::string> options_)
     {
         options = options_;
+        
+        // Recalculate scroll bounds and clamp/reset offset
+        float totalContentHeight = options.size() * optionHeight;
+        if (totalContentHeight <= shape.size.y) {
+            maxScrollbarOffset = 0;
+            scrollbarOffsetInPixels = 0; // Reset scroll if content now fits
+        } else {
+            maxScrollbarOffset = totalContentHeight - shape.size.y;
+            // Clamp existing offset if it's now out of bounds
+            scrollbarOffsetInPixels = std::max(0.0f, std::min(scrollbarOffsetInPixels, maxScrollbarOffset));
+        }
         return *this;
     }
 

@@ -53,10 +53,19 @@ void MainComponent::draw()
     std::string currentInputFormat = audioProcessor.getTranscodeInputFormat();
     std::string currentOutputFormat = audioProcessor.getTranscodeOutputFormat();
     
+    // Get state for both filters (using new names)
+    bool showExactInputState = audioProcessor.parameters.getParameterAsValue(M1TranscoderAudioProcessor::paramShowExactInputChannels).getValue();
+    bool showExactOutputState = audioProcessor.parameters.getParameterAsValue(M1TranscoderAudioProcessor::paramShowExactOutputChannels).getValue();
+    static bool lastShowExactInputState = !showExactInputState;
+    static bool lastShowExactOutputState = !showExactOutputState;
+    
+    // Check if channel counts, selected formats, OR either filter mode changed
     if (currentInputChannels != lastInputChannels || 
         currentOutputChannels != lastOutputChannels ||
         currentInputFormat != lastInputFormat ||
-        currentOutputFormat != lastOutputFormat) {
+        currentOutputFormat != lastOutputFormat ||
+        showExactInputState != lastShowExactInputState || 
+        showExactOutputState != lastShowExactOutputState) {
         
         updateFormatLists();
         
@@ -64,6 +73,8 @@ void MainComponent::draw()
         lastOutputChannels = currentOutputChannels;
         lastInputFormat = currentInputFormat;
         lastOutputFormat = currentOutputFormat;
+        lastShowExactInputState = showExactInputState;
+        lastShowExactOutputState = showExactOutputState;
     }
     
     int selectedInputFormatIndex = audioProcessor.selectedInputFormatIndex;
@@ -90,8 +101,10 @@ void MainComponent::draw()
     inputLabel.alignment = TextAlignment::TEXT_LEFT;
     inputLabel.draw();
 
-    // Input format scrollable list - make it narrower to leave room for meters
-    auto& inputList = m.prepare<M1ScrollableList>(murka::MurkaShape(20, 40, getWidth() / 3 - 40, getHeight() - 100));
+    // Input format scrollable list - Prepare it *before* using its shape for button placement
+    float filterButtonHeight = 20;
+    float listHeight = getHeight() - 100 - filterButtonHeight - 10; // Calculate adjusted height
+    auto& inputList = m.prepare<M1ScrollableList>(murka::MurkaShape(20, 40, getWidth() / 3 - 40, listHeight)); 
     inputList.withOptions(inputFormatsList)
         .withFontSize(DEFAULT_FONT_SIZE - 4)
         .withSelectedIndex(selectedInputFormatIndex)
@@ -100,7 +113,26 @@ void MainComponent::draw()
         .withBackgroundColor(MurkaColor(BACKGROUND_GREY))
         .withOutlineColor(MurkaColor(ENABLED_PARAM))
         .withSelectedColor(MurkaColor(GRID_LINES_2));
-    inputList.draw();
+    // Defer drawing the list until after the button
+
+    // --- Input Filter Button ---
+    float filterButtonWidth = getWidth() / 3 - 40; // Match list width
+    float inputFilterButtonY = 40 + listHeight + 5; // Position below the list area
+    auto& inputFilterButton = m.prepare<M1DropdownButton>(murka::MurkaShape(20, inputFilterButtonY, filterButtonWidth, filterButtonHeight));
+    inputFilterButton.withLabel(showExactInputState ? "Filter: ==" : "Filter: <=")
+                     .withFontSize(DEFAULT_FONT_SIZE - 5)
+                     .withLabelColor(MurkaColor(ENABLED_PARAM)) // Corrected color arg
+                     .withOutlineColor(MurkaColor(ENABLED_PARAM)) // Corrected color arg
+                     .withOutline(true);
+    inputFilterButton.draw();
+
+    if (inputFilterButton) { // Check if pressed
+        auto* param = audioProcessor.parameters.getParameter(M1TranscoderAudioProcessor::paramShowExactInputChannels);
+        param->setValueNotifyingHost(!showExactInputState); // Toggle the value
+    }
+
+    // Now draw the input list
+    inputList.draw(); 
 
     if (inputList.changed) {
         selectedInputFormatIndex = inputList.selectedIndex;
@@ -126,8 +158,8 @@ void MainComponent::draw()
     outputLabel.alignment = TextAlignment::TEXT_LEFT;
     outputLabel.draw();
 
-    // Output format scrollable list - make it narrower to leave room for meters
-    auto& outputList = m.prepare<M1ScrollableList>(murka::MurkaShape(2 * getWidth() / 3 + 20, 40, getWidth() / 3 - 40, getHeight() - 100));
+    // Output format scrollable list
+    auto& outputList = m.prepare<M1ScrollableList>(murka::MurkaShape(2 * getWidth() / 3 + 20, 40, getWidth() / 3 - 40, listHeight)); // Use same adjusted height
     outputList.withOptions(outputFormatsList)
         .withFontSize(DEFAULT_FONT_SIZE - 4)
         .withSelectedIndex(selectedOutputFormatIndex)
@@ -138,6 +170,24 @@ void MainComponent::draw()
         .withSelectedColor(MurkaColor(GRID_LINES_2))
         .withCompatibleFormats(compatibleOutputFormats)  // Pass the list of compatible formats
         .withIncompatibleColor(MurkaColor(DISABLED_PARAM)); // Use disabled color for incompatible formats
+    // Defer drawing the list until after the button
+
+    // --- Output Filter Button ---
+    float outputFilterButtonY = 40 + listHeight + 5; // Position below the list area
+    auto& outputFilterButton = m.prepare<M1DropdownButton>(murka::MurkaShape(2 * getWidth() / 3 + 20, outputFilterButtonY, filterButtonWidth, filterButtonHeight));
+    outputFilterButton.withLabel(showExactOutputState ? "Filter: ==" : "Filter: <=")
+                      .withFontSize(DEFAULT_FONT_SIZE - 5)
+                      .withLabelColor(MurkaColor(ENABLED_PARAM)) // Corrected color arg
+                      .withOutlineColor(MurkaColor(ENABLED_PARAM)) // Corrected color arg
+                      .withOutline(true);
+    outputFilterButton.draw();
+
+    if (outputFilterButton) { // Check if pressed
+        auto* param = audioProcessor.parameters.getParameter(M1TranscoderAudioProcessor::paramShowExactOutputChannels);
+        param->setValueNotifyingHost(!showExactOutputState); // Toggle the value
+    }
+
+    // Now draw the output list
     outputList.draw();
 
     if (outputList.changed) {
@@ -339,30 +389,81 @@ void MainComponent::updateFormatLists() {
     int numHostInputChannels = audioProcessor.getBus(true, 0)->getNumberOfChannels();
     int numHostOutputChannels = audioProcessor.getBus(false, 0)->getNumberOfChannels();
     
-    // Update input format list
+    // --- Update Input List --- 
     inputFormatsList = audioProcessor.getMatchingInputFormatNames(numHostInputChannels);
     
-    // Make sure selected input format index is valid
-    if (audioProcessor.selectedInputFormatIndex >= inputFormatsList.size()) {
-        audioProcessor.selectedInputFormatIndex = 0;
+    // Find the index of the currently selected format name in the new list
+    auto it_in = std::find(inputFormatsList.begin(), inputFormatsList.end(), audioProcessor.selectedInputFormatName);
+    if (it_in != inputFormatsList.end()) {
+        // Found it, update the index
+        audioProcessor.selectedInputFormatIndex = static_cast<int>(std::distance(inputFormatsList.begin(), it_in));
+    } else {
+        // Not found (or was empty), reset to the first item if available
+        if (!inputFormatsList.empty()) {
+            audioProcessor.selectedInputFormatIndex = 0;
+            // Update the processor's selected name to match the reset
+            audioProcessor.setTranscodeInputFormat(inputFormatsList[0]); 
+        } else {
+            // No formats available
+            audioProcessor.selectedInputFormatIndex = 0;
+            audioProcessor.setTranscodeInputFormat(""); 
+        }
     }
-    
-    // Update output format list based on selected input format
-    if (!inputFormatsList.empty()) {
-        std::string selectedInputFormat = inputFormatsList[audioProcessor.selectedInputFormatIndex];
-        outputFormatsList = audioProcessor.getMatchingOutputFormatNames(selectedInputFormat, numHostOutputChannels);
-        
-        // Also get the list of compatible formats (those with valid conversion paths)
-        compatibleOutputFormats = audioProcessor.getCompatibleOutputFormats(selectedInputFormat, numHostOutputChannels);
+
+    // --- Update Output List --- 
+    std::string currentSelectedInputFormat = audioProcessor.getTranscodeInputFormat(); // Use the potentially updated name
+    if (!currentSelectedInputFormat.empty()) {
+        // Get the full list based *only* on channel filtering (fast)
+        outputFormatsList = audioProcessor.getMatchingOutputFormatNames(numHostOutputChannels);
+        // Get the list of *actually compatible* formats (slower)
+        compatibleOutputFormats = audioProcessor.getCompatibleOutputFormats(currentSelectedInputFormat, numHostOutputChannels);
     } else {
         outputFormatsList.clear();
         compatibleOutputFormats.clear();
     }
     
-    // Make sure selected output format index is valid
-    if (audioProcessor.selectedOutputFormatIndex >= outputFormatsList.size()) {
-        audioProcessor.selectedOutputFormatIndex = 0;
+    // --- Output Selection Logic --- 
+    int newOutputIndex = -1;
+    std::string newOutputName = "";
+
+    // Prioritize finding the previously selected format *within the compatible list*
+    auto it_compat = std::find(compatibleOutputFormats.begin(), compatibleOutputFormats.end(), audioProcessor.selectedOutputFormatName);
+
+    if (it_compat != compatibleOutputFormats.end()) {
+        // Found the previously selected format and it's still compatible
+        newOutputName = *it_compat;
+    } else {
+        // Previous selection not found or no longer compatible.
+        // Select the first compatible format if any exist.
+        if (!compatibleOutputFormats.empty()) {
+            newOutputName = compatibleOutputFormats[0];
+        } else {
+            // No compatible formats exist for this input/channel count/filter
+            newOutputName = "";
+        }
     }
+
+    // Now find the index of the chosen name in the *full* list for UI display
+    if (!newOutputName.empty()) {
+         auto it_full = std::find(outputFormatsList.begin(), outputFormatsList.end(), newOutputName);
+         if (it_full != outputFormatsList.end()) {
+             newOutputIndex = static_cast<int>(std::distance(outputFormatsList.begin(), it_full));
+         } else {
+             // Should not happen if compatible list is derived from full list, but handle defensively
+             newOutputIndex = 0; 
+             newOutputName = ""; // Clear name if index is invalid
+         }
+    } else {
+        // No compatible format was chosen
+        newOutputIndex = 0;
+    }
+    
+    // Update processor state if the selection changed
+    if (newOutputName != audioProcessor.selectedOutputFormatName) {
+         audioProcessor.setTranscodeOutputFormat(newOutputName);
+    }
+    // Always update the index for the UI list
+    audioProcessor.selectedOutputFormatIndex = newOutputIndex;
 } 
 
 void MainComponent::postAlert(const Mach1::AlertData& alert)
