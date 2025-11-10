@@ -387,3 +387,95 @@ html.dark {
 #progressbarMain {
     width: 0%;
 }
+
+#audioFileListDropdown {
+  margin-top: -8px;
+  margin-bottom: 0;
+  margin-left: 0;
+  padding-left: 0;
+  text-align: left;
+}
+
+#audioFileCount {
+  font-size: 0.75em;
+  color: #8a8a8a;
+}
+
+#audioFileListToggle {
+  cursor: pointer;
+  pointer-events: auto;
+  font-size: 0.75em;
+  color: #8a8a8a;
+}
+
+#audioFileListToggle:hover {
+  color: #cccbcb;
+  text-decoration: underline;
+}
+
+#audioFileListContent {
+  font-family: "InterRegular";
+  color: #cccbcb;
+  border: 1px solid #333;
+  margin-top: 2px;
+}
+
+#audioFileListContent .file-list-item {
+  padding: 2px 4px;
+  border-bottom: 1px solid #2a2a2a;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+#audioFileListContent .file-list-item:last-child {
+  border-bottom: none;
+}
+
+#audioFileListContent .file-number {
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+
+#audioFileListContent .file-name {
+  flex-grow: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 8px;
+}
+
+#audioFileListContent .file-remove {
+  flex-shrink: 0;
+  cursor: pointer;
+  color: #666;
+  font-size: 0.85em;
+  padding: 0 4px;
+  line-height: 1;
+  user-select: none;
+  transition: color 0.15s;
+}
+
+#audioFileListContent .file-remove:hover {
+  color: #ff6b6b;
+}
+
+/* Custom scrollbar for file list */
+#audioFileListContent::-webkit-scrollbar {
+  width: 6px;
+}
+
+#audioFileListContent::-webkit-scrollbar-track {
+  background: #0a0a0a;
+  border-radius: 3px;
+}
+
+#audioFileListContent::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 3px;
+}
+
+#audioFileListContent::-webkit-scrollbar-thumb:hover {
+  background: #666;
+}

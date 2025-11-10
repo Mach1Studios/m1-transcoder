@@ -81,8 +81,15 @@ $(document).ready(async function() {
 		e.preventDefault();
 		$('#dragAudio,#dragStereo,#dragJson,#dragVideo').hide();
 		if (e.dataTransfer.files.length > 0) {
-			// TODO: Display indicator for detecting multiple files
-			$('#Audio input[type="text"]').val(e.dataTransfer.files[0].path);
+			if (e.dataTransfer.files.length === 1) {
+				$('#Audio input[type="text"]').val(e.dataTransfer.files[0].path);
+				$('#audioFileListDropdown').hide();
+			} else {
+				$('#Audio input[type="text"]').val(e.dataTransfer.files[0].path + ' + ' + (e.dataTransfer.files.length - 1) + ' more');
+				
+				// Update file list display
+				updateAudioFileList(e.dataTransfer.files);
+			}
 		}
 		window.inputAudioFiles.length = 0;
 		var index = 0;
@@ -701,6 +708,88 @@ $(document).ready(async function() {
 	const { ipcRenderer } = require('electron');
 	const fs = require('fs');
 
+	// Function to update the file list display
+	function updateAudioFileList(files) {
+		const path = require('path');
+		let listHtml = '';
+		
+		for (let i = 0; i < files.length; i++) {
+			const file = files[i];
+			const filePath = file.path || file;
+			const filename = path.basename(filePath);
+			listHtml += '<div class="file-list-item" data-index="' + i + '">' + 
+				'<span class="file-number">' + (i + 1) + '. </span>' +
+				'<span class="file-name">' + filename + '</span>' +
+				'<span class="file-remove" data-index="' + i + '">✕</span>' +
+				'</div>';
+		}
+		
+		$('#audioFileListContent').html(listHtml);
+		$('#audioFileListContent').hide(); // Start collapsed
+		$('#audioFileCount').text('(' + files.length + ' files)');
+		$('#audioFileListToggle').text('▼ Show file list');
+		$('#audioFileListDropdown').show();
+		$('#batchOutputNote').show(); // Show batch output note
+	}
+	
+	// Remove file from list
+	$(document).on('click', '.file-remove', function(e) {
+		e.stopPropagation();
+		const index = parseInt($(this).attr('data-index'));
+		
+		// Remove from array
+		window.inputAudioFiles.splice(index, 1);
+		
+		// Update display
+		if (window.inputAudioFiles.length === 0) {
+			// No files left
+			$('#Audio input[type="text"]').val('');
+			$('#audioFileListDropdown').hide();
+			$('#batchOutputNote').hide();
+		} else if (window.inputAudioFiles.length === 1) {
+			// Only one file left
+			$('#Audio input[type="text"]').val(window.inputAudioFiles[0]);
+			$('#audioFileListDropdown').hide();
+			$('#batchOutputNote').hide();
+		} else {
+			// Multiple files remain
+			$('#Audio input[type="text"]').val(window.inputAudioFiles[0] + ' + ' + (window.inputAudioFiles.length - 1) + ' more');
+			updateAudioFileList(window.inputAudioFiles);
+		}
+		
+		log.info('Removed file at index ' + index + '. Remaining files:', window.inputAudioFiles.length);
+	});
+
+	// Toggle dropdown - using event delegation
+	$(document).on('click', '#audioFileListToggle', function(e) {
+		e.preventDefault();
+		e.stopPropagation();
+		console.log('Toggle clicked!'); // Debug
+		
+		const content = $('#audioFileListContent');
+		const toggle = $('#audioFileListToggle');
+		
+		if (content.is(':visible')) {
+			content.css('display', 'none');
+			toggle.text('▼ Show file list');
+		} else {
+			content.css('display', 'block');
+			toggle.text('▲ Hide file list');
+		}
+	});
+	
+	// Close dropdown when clicking outside
+	$(document).on('click', function(e) {
+		if (!$(e.target).closest('#audioFileListDropdown').length) {
+			const content = $('#audioFileListContent');
+			const toggle = $('#audioFileListToggle');
+			if (content.is(':visible')) {
+				content.css('display', 'none');
+				toggle.text('▼ Show file list');
+			}
+		}
+	});
+
 	function AddOpenFileHandler(selector, extensions, inputFiles, checkFunc) {
 		var obj = $(selector + ' input[type="submit"]');
 		obj.click(async function() {
@@ -708,7 +797,21 @@ $(document).ready(async function() {
 				const filenames = await ipcRenderer.invoke('show-open-dialog', extensions);
 				if (typeof filenames != 'undefined') {
 					log.info("Number of Input Files: " + filenames.length);
-					obj.parent().children('input[type="text"]').val(filenames[0]);
+					
+					// Update file display and counter
+					if (filenames.length === 1) {
+						obj.parent().children('input[type="text"]').val(filenames[0]);
+						if (selector === '#Audio') {
+							$('#audioFileListDropdown').hide();
+						}
+					} else {
+						obj.parent().children('input[type="text"]').val(filenames[0] + ' + ' + (filenames.length - 1) + ' more');
+						if (selector === '#Audio') {
+							// Update file list display
+							updateAudioFileList(filenames);
+						}
+					}
+					
 					inputFiles.length = 0;
 					var index = 0;
 					for (let filePath of filenames) {
@@ -837,15 +940,18 @@ $(document).ready(async function() {
 
 			// checking inputs
 			checkSpatialAudioInput();
-			preprocessSpatialAudioInput();
-			checkStereoAudioInput();
-			checkJsonInput();
-			checkVideoInput();
+		preprocessSpatialAudioInput();
+		checkStereoAudioInput();
+		checkJsonInput();
+		checkVideoInput();
 
+		// Don't overwrite inputAudioFiles[0] if it's already populated (batch mode)
+		if (window.inputAudioFiles.length === 0 || !window.inputAudioFiles[0]) {
 			window.inputAudioFiles[0] = $('#Audio input[type="text"]').val();
-			inputAudioFilename = window.inputAudioFiles[0];
-			var inputAudioExt = inputAudioFilename.substring(inputAudioFilename.lastIndexOf('.')+1, inputAudioFilename.length) || inputAudioFilename;
-			log.info("Input Spatial Audio Path: ", inputAudioExt);
+		}
+		inputAudioFilename = window.inputAudioFiles[0];
+		var inputAudioExt = inputAudioFilename.substring(inputAudioFilename.lastIndexOf('.')+1, inputAudioFilename.length) || inputAudioFilename;
+		log.info("Input Spatial Audio Path: ", inputAudioExt);
 
 			var inputVideoFilename = $('#Video input[type="text"]').val();
 			var outputVideoFilename = $('#OutputVideo input[type="text"]').val();
@@ -6596,92 +6702,265 @@ $(document).ready(async function() {
 				},
 			];
 
-			// Set recipe selection variables
-			let inputAudioFilesLength = window.inputAudioFiles.length;
-			let hasVideoFile = !!inputVideoFilename;
-			let hasStereoAudioFile = !!window.inputStereoFiles[0];
-			let isFromProTools = window.fromProToolsNeedsChannelReOrdering || false;
-
-			if (outputFileTypeKey === 'WAV' || outputFileTypeKey === 'M4A') {
-				hasVideoFile = false;
+		// Detect batch mode: multiple files that should be processed individually
+		let inputAudioFilesLength = window.inputAudioFiles.length;
+		let isBatchMode = false;
+		let batchFiles = [];
+		
+		// Check if we have multiple files and if there's a recipe for that specific count
+		// If no recipe exists for the exact file count, we're in batch mode
+		if (inputAudioFilesLength > 1) {
+			let hasExactCountRecipe = false;
+			for (const recipe of recipes) {
+				if (recipe.conditions && recipe.conditions.inputAudioFilesLength === inputAudioFilesLength) {
+					hasExactCountRecipe = true;
+					break;
+				}
 			}
+			
+			if (!hasExactCountRecipe) {
+				// Batch mode: process each file individually
+				isBatchMode = true;
+				batchFiles = [...window.inputAudioFiles]; // Copy all files
+				log.info('Batch mode detected: processing ' + batchFiles.length + ' files individually');
+			}
+		}
 
-			// Add in variables
-			let variables = {
-				inputAudioFilesLength,
-				selectedOutputType,
-				outputFileTypeKey,
-				hasVideoFile,
-				hasStereoAudioFile,
-				isFromProTools,
-			};
+		// Function to generate unique output filename for batch processing
+		function generateBatchOutputFilename(baseFilename, batchIndex, totalFiles) {
+			const path = require('path');
+			const ext = path.extname(baseFilename);
+			const nameWithoutExt = baseFilename.substring(0, baseFilename.length - ext.length);
+			
+			// Add batch index to filename
+			return nameWithoutExt + '_' + (batchIndex + 1).toString().padStart(3, '0') + ext;
+		}
 
-			log.info('Variables for recipe selection:', variables);
+		// Main processing function that can handle single or batch
+		async function processSingleFile(audioFilePath, outputFilename, fileIndex, totalFiles) {
+			// Temporarily set window.inputAudioFiles to single file for recipe processing
+			const originalInputFiles = window.inputAudioFiles;
+			window.inputAudioFiles = [audioFilePath];
+			window.inputAudioFiles[0] = audioFilePath;
+			
 			try {
-				selectedRecipe = selectRecipe(variables, recipes);
-			  } catch (error) {
-				console.error(error.message);
-				return;
-			  }
+				// Update progress text if in batch mode
+				if (isBatchMode) {
+					$('#batchProgressText').text('Processing file ' + (fileIndex + 1) + ' of ' + totalFiles);
+					log.info('Processing file ' + (fileIndex + 1) + ' of ' + totalFiles + ': ' + audioFilePath);
+				}
 
+				// Run preprocessing for this specific file (needed for batch mode)
+				checkSpatialAudioInput();
+				preprocessSpatialAudioInput();
+
+				// Set recipe selection variables
+				let hasVideoFile = !!inputVideoFilename;
+				let hasStereoAudioFile = !!window.inputStereoFiles[0];
+				let isFromProTools = window.fromProToolsNeedsChannelReOrdering || false;
+
+				if (outputFileTypeKey === 'WAV' || outputFileTypeKey === 'M4A') {
+					hasVideoFile = false;
+				}
+
+				// Add in variables (always use length 1 for batch mode)
+				let variables = {
+					inputAudioFilesLength: 1,
+					selectedOutputType,
+					outputFileTypeKey,
+					hasVideoFile,
+					hasStereoAudioFile,
+					isFromProTools,
+				};
+
+				log.info('Variables for recipe selection:', variables);
+				let selectedRecipe;
+				try {
+					selectedRecipe = selectRecipe(variables, recipes);
+				} catch (error) {
+					console.error(error.message);
+					window.inputAudioFiles = originalInputFiles; // Restore
+					throw error;
+				}
+
+			// Build processing request
+			let processingRequest = [];
 			for (const step of selectedRecipe) {
 				const processedStep = {};
 				for (const key in step) {
-				if (typeof step[key] === 'function') {
-					try {
-					processedStep[key] = step[key](); // Evaluate the function
-					} catch (error) {
-					console.error(`Error evaluating function for key '${key}':`, error);
-					// TODO: Display error to user!
-					// clear up
-					$('#Audio input[type="text"]').val("");
-					$('#StereoAudio input[type="text"]').val("");
-					$('#JsonInput input[type="text"]').val("");
-					$('#Video input[type="text"]').val("");
-					$('#OutputVideo input[type="text"]').val("");
-					throw error;
+					if (typeof step[key] === 'function') {
+						try {
+							const evaluatedValue = step[key](); // Evaluate the function
+							// Replace any output filename with batch-specific filename
+							if ((key === 'output_filename' || key === 'output_video') && evaluatedValue) {
+								processedStep[key] = outputFilename;
+							} else {
+								processedStep[key] = evaluatedValue;
+							}
+						} catch (error) {
+							console.error(`Error evaluating function for key '${key}':`, error);
+							window.inputAudioFiles = originalInputFiles; // Restore
+							throw error;
+						}
+					} else {
+						// Replace any output filename with batch-specific filename
+						if ((key === 'output_filename' || key === 'output_video') && step[key]) {
+							// Check if it's the base output filename or contains the output path
+							if (step[key] === outputVideoFilename || step[key].includes(outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf('.')))) {
+								processedStep[key] = outputFilename;
+							} else {
+								processedStep[key] = step[key];
+							}
+						} else {
+							processedStep[key] = step[key];
+						}
 					}
-				} else {
-					processedStep[key] = step[key];
-				}
 				}
 				processingRequest.push(processedStep);
 			}
 
-			(async () => {
-			  try {
-				log.info('rendering... ' + new Date());
+				// Process the file
+				const result = await performSetOfProcesses(processingRequest);
+				
+				// Restore original input files
+				window.inputAudioFiles = originalInputFiles;
+				
+				return result;
+				
+			} catch (error) {
+				window.inputAudioFiles = originalInputFiles; // Restore
+				throw error;
+			}
+		}
 
-				ShowProgressbar();
-				if (await performSetOfProcesses(processingRequest)) {
-					// clear up
-					$('#Audio input[type="text"]').val("");
-					$('#StereoAudio input[type="text"]').val("");
-					$('#JsonInput input[type="text"]').val("");
-					$('#Video input[type="text"]').val("");
-					$('#OutputVideo input[type="text"]').val("");
-					ShowMessage("Rendered successfully!");
-				} else {
-					// clear up
-					$('#Audio input[type="text"]').val("");
-					$('#StereoAudio input[type="text"]').val("");
-					$('#JsonInput input[type="text"]').val("");
-					$('#Video input[type="text"]').val("");
-					$('#OutputVideo input[type="text"]').val("");
-					ShowMessage("Error: Please submit log.log file.", true);
+		// Execute batch or single file processing
+		(async () => {
+		  try {
+			log.info('rendering... ' + new Date());
+			ShowProgressbar();
+			
+			let overallSuccess = true;
+			
+			if (isBatchMode) {
+				// Batch mode: process each file
+				for (let i = 0; i < batchFiles.length; i++) {
+					const batchOutputFilename = generateBatchOutputFilename(outputVideoFilename, i, batchFiles.length);
+					window.outputFilename = batchOutputFilename; // Update for Reveal function
+					
+					const success = await processSingleFile(batchFiles[i], batchOutputFilename, i, batchFiles.length);
+					
+					if (!success) {
+						log.error('Failed to process file ' + (i + 1) + ': ' + batchFiles[i]);
+						overallSuccess = false;
+						break; // Stop on first error
+					}
+					
+					// Update progress bar
+					const progress = ((i + 1) / batchFiles.length) * 100;
+					$('#progressbarMain').css('width', progress + '%');
 				}
-				HideProgressbar();
-				log.info('Render Complete: ' + new Date);
-			  } catch (error) {
+			} else {
+				// Single file or special multi-file mode (like M1HorizonPairs)
+				// Set recipe selection variables
+				let hasVideoFile = !!inputVideoFilename;
+				let hasStereoAudioFile = !!window.inputStereoFiles[0];
+				let isFromProTools = window.fromProToolsNeedsChannelReOrdering || false;
+
+				if (outputFileTypeKey === 'WAV' || outputFileTypeKey === 'M4A') {
+					hasVideoFile = false;
+				}
+
+				// Add in variables
+				let variables = {
+					inputAudioFilesLength,
+					selectedOutputType,
+					outputFileTypeKey,
+					hasVideoFile,
+					hasStereoAudioFile,
+					isFromProTools,
+				};
+
+				log.info('Variables for recipe selection:', variables);
+				let selectedRecipe;
+				try {
+					selectedRecipe = selectRecipe(variables, recipes);
+				} catch (error) {
+					console.error(error.message);
+					HideProgressbar();
+					return;
+				}
+
+				// Build processing request
+				let processingRequest = [];
+				for (const step of selectedRecipe) {
+					const processedStep = {};
+					for (const key in step) {
+						if (typeof step[key] === 'function') {
+							try {
+								processedStep[key] = step[key](); // Evaluate the function
+							} catch (error) {
+								console.error(`Error evaluating function for key '${key}':`, error);
+								$('#Audio input[type="text"]').val("");
+								$('#StereoAudio input[type="text"]').val("");
+								$('#JsonInput input[type="text"]').val("");
+								$('#Video input[type="text"]').val("");
+								$('#OutputVideo input[type="text"]').val("");
+								HideProgressbar();
+								throw error;
+							}
+						} else {
+							processedStep[key] = step[key];
+						}
+					}
+					processingRequest.push(processedStep);
+				}
+
+				// Process
+				overallSuccess = await performSetOfProcesses(processingRequest);
+			}
+
+			// Clean up and show result
+			if (overallSuccess) {
 				// clear up
 				$('#Audio input[type="text"]').val("");
 				$('#StereoAudio input[type="text"]').val("");
 				$('#JsonInput input[type="text"]').val("");
 				$('#Video input[type="text"]').val("");
 				$('#OutputVideo input[type="text"]').val("");
-				console.error('An error occurred:', error);
-			  }
-			})();
+				$('#audioFileListDropdown').hide();
+				
+				if (isBatchMode) {
+					ShowMessage("Batch rendered " + batchFiles.length + " files successfully!");
+				} else {
+					ShowMessage("Rendered successfully!");
+				}
+			} else {
+				// clear up
+				$('#Audio input[type="text"]').val("");
+				$('#StereoAudio input[type="text"]').val("");
+				$('#JsonInput input[type="text"]').val("");
+				$('#Video input[type="text"]').val("");
+				$('#OutputVideo input[type="text"]').val("");
+				$('#audioFileListDropdown').hide();
+				ShowMessage("Error: Please submit log.log file.", true);
+			}
+			HideProgressbar();
+			$('#batchProgressText').text('');
+			log.info('Render Complete: ' + new Date);
+		  } catch (error) {
+			// clear up
+			$('#Audio input[type="text"]').val("");
+			$('#StereoAudio input[type="text"]').val("");
+			$('#JsonInput input[type="text"]').val("");
+			$('#Video input[type="text"]').val("");
+			$('#OutputVideo input[type="text"]').val("");
+			$('#audioFileCount').text('');
+			$('#audioFileList').hide();
+			$('#batchProgressText').text('');
+			console.error('An error occurred:', error);
+			HideProgressbar();
+		  }
+		})();
 		};
 
 		var outputVideoInput = $('#OutputVideo input[type="text"]');
