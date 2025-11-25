@@ -266,6 +266,9 @@ $(document).ready(async function() {
 		var bitdepth = "";
 		var encoded_by = "";
 		var ext = "";
+		
+		// Flag to track if all input files are single channel (mono)
+		window.allInputFilesAreMono = true;
 
 		for (let filePath of window.inputAudioFiles) {
 			// checking channel count
@@ -294,8 +297,14 @@ $(document).ready(async function() {
 					encoded_by = re.exec(err)[1]; // extracting file extension
 					log.info("Encoded By: " + encoded_by);
 				}
-
-				if (err.toString().indexOf(", 7.1") >= 0 || err.toString().indexOf(", 8 channels,") >= 0) {
+				
+				// Check for mono
+				if (err.toString().indexOf("mono") >= 0) {
+					// Mono file, keep allInputFilesAreMono as true (unless already false)
+				} else if (err.toString().indexOf("stereo") >= 0 || err.toString().indexOf("2 channels") >= 0 || err.toString().indexOf(", 2.0") >= 0) {
+					window.allInputFilesAreMono = false;
+				} else if (err.toString().indexOf(", 7.1") >= 0 || err.toString().indexOf(", 8 channels,") >= 0) {
+					window.allInputFilesAreMono = false;
 					// var occurenceIndex = err.toString().indexOf("channels");
 					// channelCount = err.toString().substr(occurenceIndex - 2, 2);
 					channelCount = 8;
@@ -313,6 +322,7 @@ $(document).ready(async function() {
 						log.info("Input Spatial Audio File not from Pro Tools or is .aif...")
 					}
 				} else if (err.toString().indexOf("hexadecagonal") >= 0 || err.toString().indexOf(" channels") >= 0) {
+					window.allInputFilesAreMono = false;
 					if (err.toString().indexOf("hexadecagonal") >= 0) {
 						channelCount = 16;
 					} else {
@@ -345,6 +355,17 @@ $(document).ready(async function() {
 						log.info("Input Spatial Audio File is from Pro Tools and marked for channel count trimming...")
 					}
 				} else {
+					// Unknown channel count, assume not mono for safety or check log
+					// But if we don't see "mono", safe to assume it might not be
+					// However, let's rely on explicit detection of >1 channels to set to false
+					// If nothing detected, maybe keep as is? No, better safe
+					// Actually, if "mono" is not found, and no other channel count found, it's ambiguous.
+					// But typically ffmpeg outputs "mono", "stereo", "5.1", "7.1" etc.
+					// If we don't see "mono", set false
+					if (err.toString().indexOf("Audio:") >= 0 && err.toString().indexOf("mono") == -1) {
+						window.allInputFilesAreMono = false;
+					}
+					
 					log.info("Error: Input Spatial Audio channel count not found...");
 					log.info(err.toString())
 					window.fromProToolsNeedsChannelReOrdering = false;
@@ -532,7 +553,9 @@ $(document).ready(async function() {
 			}
 		}
 
-		if (window.inputAudioFiles !== undefined && window.inputAudioFiles.length >= 4) {
+		// Horizon Pairs logic:
+		// Only restrict to Horizon Pairs if we have exactly 4 files AND they are ALL mono.
+		if (window.inputAudioFiles !== undefined && window.inputAudioFiles.length === 4 && window.allInputFilesAreMono) {
 			$("#OutputType select").find("option").show().not("option[value='3'],option[value='4']").hide();
 			if (selectedOutputType != 3 && selectedOutputType != 4) {
 				$("#OutputType select").val('3');
@@ -542,6 +565,19 @@ $(document).ready(async function() {
 			if (selectedOutputFileType != 3 && selectedOutputFileType != 4) {
 				$("#OutputFileType select").val('3');
 			}
+		}
+		// Otherwise, if 4 files but not all mono (or mixed), treat as batch and show all options
+		else if (window.inputAudioFiles !== undefined && window.inputAudioFiles.length === 4 && !window.allInputFilesAreMono) {
+			// Show all options except Horizon Pairs outputs (unless they are specifically supported for batch)
+			// Actually, if it's batch, we can support any single-file output format.
+			// Horizon pairs (3 & 4) usually expect 4-mono inputs for merge, OR single 8ch input.
+			// If we have 4 multi-channel files, we probably want batch conversion to other formats.
+			
+			// So, show all options. Horizon pairs might fail if inputs aren't correct, but that's standard behavior.
+			$("#OutputType select").find("option").show();
+			
+			// Ensure we aren't stuck on a hidden option if logic changes
+			// But we don't need to force change unless current selection is invalid.
 		}
 		//Turn off horizon pairs multi audio outputs
 		else if ((window.inputAudioFiles === undefined || window.inputAudioFiles.length >= 1) && (selectedOutputType == 4)) {
@@ -730,6 +766,7 @@ $(document).ready(async function() {
 		$('#audioFileListToggle').text('▼ Show file list');
 		$('#audioFileListDropdown').show();
 		$('#batchOutputNote').show(); // Show batch output note
+		$('#OutputVideo').hide(); // Hide output destination for batch mode
 	}
 	
 	// Remove file from list
@@ -746,11 +783,13 @@ $(document).ready(async function() {
 			$('#Audio input[type="text"]').val('');
 			$('#audioFileListDropdown').hide();
 			$('#batchOutputNote').hide();
+			$('#OutputVideo').show();
 		} else if (window.inputAudioFiles.length === 1) {
 			// Only one file left
 			$('#Audio input[type="text"]').val(window.inputAudioFiles[0]);
 			$('#audioFileListDropdown').hide();
 			$('#batchOutputNote').hide();
+			$('#OutputVideo').show();
 		} else {
 			// Multiple files remain
 			$('#Audio input[type="text"]').val(window.inputAudioFiles[0] + ' + ' + (window.inputAudioFiles.length - 1) + ' more');
@@ -803,6 +842,7 @@ $(document).ready(async function() {
 						obj.parent().children('input[type="text"]').val(filenames[0]);
 						if (selector === '#Audio') {
 							$('#audioFileListDropdown').hide();
+							$('#OutputVideo').show();
 						}
 					} else {
 						obj.parent().children('input[type="text"]').val(filenames[0] + ' + ' + (filenames.length - 1) + ' more');
@@ -976,10 +1016,6 @@ $(document).ready(async function() {
 			// TODO: use only this global var
 			window.selectedOutputType = selectedOutputType;
 
-			if (outputVideoFilename == "") {
-				return false;
-			}
-
 			// Output Type Constants
 			const OutputTypes = {
 				M1SPATIAL: '1',
@@ -1054,6 +1090,16 @@ $(document).ready(async function() {
 			if (!preferredExtension) {
 				console.error(`No preferred extension for output type: ${outputFileTypeKey}`);
 				return false;
+			}
+
+			// Auto-generate filename if empty (Batch Mode or hidden input)
+			if (outputVideoFilename == "") {
+				if (inputAudioFilename) {
+					var formatName = $('#OutputType option:selected').text();
+					outputVideoFilename = generateBatchOutputFilename(inputAudioFilename, formatName, preferredExtension);
+				} else {
+					return false;
+				}
 			}
 
 			var re = /(?:\.([^.]+))?$/;
@@ -6711,10 +6757,20 @@ $(document).ready(async function() {
 		// If no recipe exists for the exact file count, we're in batch mode
 		if (inputAudioFilesLength > 1) {
 			let hasExactCountRecipe = false;
-			for (const recipe of recipes) {
-				if (recipe.conditions && recipe.conditions.inputAudioFilesLength === inputAudioFilesLength) {
-					hasExactCountRecipe = true;
-					break;
+			
+			// Special check for Horizon Pairs (4 files)
+			// Only consider it a single "Horizon Pairs" input if we have 4 files AND they are all mono.
+			if (inputAudioFilesLength === 4 && window.allInputFilesAreMono) {
+				hasExactCountRecipe = true;
+			} else {
+				// Check other recipes if needed
+				for (const recipe of recipes) {
+					if (recipe.conditions && 
+						recipe.conditions.inputAudioFilesLength === inputAudioFilesLength &&
+						(recipe.conditions.selectedOutputType == selectedOutputType || !recipe.conditions.selectedOutputType)) {
+						hasExactCountRecipe = true;
+						break;
+					}
 				}
 			}
 			
@@ -6727,13 +6783,54 @@ $(document).ready(async function() {
 		}
 
 		// Function to generate unique output filename for batch processing
-		function generateBatchOutputFilename(baseFilename, batchIndex, totalFiles) {
+		function generateBatchOutputFilename(inputFilename, formatName, outputExt) {
 			const path = require('path');
-			const ext = path.extname(baseFilename);
-			const nameWithoutExt = baseFilename.substring(0, baseFilename.length - ext.length);
+			const dir = path.dirname(inputFilename);
+			const ext = path.extname(inputFilename);
+			const nameWithoutExt = path.basename(inputFilename, ext);
+            
+            // Map full format names to shortened versions
+			const formatNameMapping = {
+				"Mach1 Spatial": "Mach1_Spatial",
+				"Mach1 Spatial [SamsungVR Sideload 4x2]": "Mach1_Spatial_SamsungVR",
+				"Mach1 Horizon": "Mach1_Horizon",
+				"Mach1 Horizon Pairs (Single Stream)": "Mach1_Horizon_Pairs",
+				"Mach1 Horizon Pairs / Quad-Binaural (Multiple Streams)": "Mach1_Horizon_Quad",
+				"Mach1 Spatial SDK, Unity & Unreal Engine: Multi-Mono files": "Mach1_Spatial_SDK",
+				"First Order Ambisonic ACNSN3D [Including YouTube]": "FOA_ACNSN3D",
+				"First Order Ambisonic FuMa": "FOA_FuMa",
+				"FB360/TBE (8ch) [wav]": "FB360_TBE_8ch",
+				"Second Order Ambisonic ACNSN3D": "SOA_ACNSN3D",
+				"Second Order Ambisonic FuMa": "SOA_FuMa",
+				"5.0 Surround (L,C,R,Ls,Rs)": "5_0_Surround",
+				"Apple Spatial 5.1-side (L,R,C,LFE,SL,SR)": "Apple_Spatial_5_1",
+				"5.1 Surround (L,C,R,Ls,Rs,LFE)": "5_1_Surround",
+				"5.1 Surround SMPTE (L,R,C,LFE,Ls,Rs)": "5_1_Surround_SMPTE",
+				"5.1 Surround DTS (L,R,Ls,Rs,C,LFE)": "5_1_Surround_DTS",
+				"5.0.2 Surround (L,C,R,Ls,Rs,Lts,Rts)": "5_0_2_Surround",
+				"5.1.2 Surround (L,C,R,Ls,Rs,LFE,Lts,Rts)": "5_1_2_Surround",
+				"5.0.4 Surround (L,C,R,Ls,Rs,FLts,FRts,BLts,BRts)": "5_0_4_Surround",
+				"5.1.4 Surround (L,C,R,Ls,Rs,LFE,FLts,FRts,BLts,BRts)": "5_1_4_Surround",
+				"7.0 Surround (L,C,R,Lss,Rss,Lsr,Rsr)": "7_0_Surround",
+				"7.1 Surround (L,C,R,Lss,Rss,Lsr,Rsr,LFE)": "7_1_Surround",
+				"7.1 Surround SDDS (L,Lc,C,Rc,R,Ls,Rs,LFE)": "7_1_Surround_SDDS",
+				"7.1.2 Surround (L,C,R,Lss,Rss,Lsr,Rsr,LFE,Lts,Rts)": "7_1_2_Surround",
+				"7.1.4 Surround (L,C,R,Lss,Rss,Lsr,Rsr,LFE,FLts,FRts,BLts,BRts)": "7_1_4_Surround",
+				"7.1.2 ADM / Dolby Atmos Channel-Bed (L, R, C, LFE, Lss, Rss, Lrs, Rrs, Lts, Rts)": "7_1_2_ADM",
+				"Custom Multichannel Format (JSON)": "Custom"
+			};
+
+            // Use mapped name if available, otherwise fallback to basic sanitization
+            let safeFormatName = formatNameMapping[formatName];
+            
+            if (!safeFormatName) {
+                // Remove brackets and their content, and replace non-alphanumeric with underscores
+                safeFormatName = formatName.replace(/\[.*?\]/g, '').trim();
+                safeFormatName = safeFormatName.replace(/[^a-z0-9]+/gi, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+            }
 			
-			// Add batch index to filename
-			return nameWithoutExt + '_' + (batchIndex + 1).toString().padStart(3, '0') + ext;
+			// Append format name to filename
+			return path.join(dir, nameWithoutExt + '_' + safeFormatName + '.' + outputExt);
 		}
 
 		// Main processing function that can handle single or batch
@@ -6843,8 +6940,9 @@ $(document).ready(async function() {
 			
 			if (isBatchMode) {
 				// Batch mode: process each file
+				var formatName = $('#OutputType option:selected').text();
 				for (let i = 0; i < batchFiles.length; i++) {
-					const batchOutputFilename = generateBatchOutputFilename(outputVideoFilename, i, batchFiles.length);
+					const batchOutputFilename = generateBatchOutputFilename(batchFiles[i], formatName, preferredExtension);
 					window.outputFilename = batchOutputFilename; // Update for Reveal function
 					
 					const success = await processSingleFile(batchFiles[i], batchOutputFilename, i, batchFiles.length);
