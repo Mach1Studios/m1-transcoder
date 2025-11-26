@@ -1,6 +1,7 @@
 #include "MainComponent.h"
 #include "MurkaTypes.h"
 #include "UI/M1Label.h"
+#include "UI/M1ToggleButton.h"
 #include "UI/M1DropdownButton.h"
 #include "UI/M1DropdownMenu.h"
 #include "UI/M1CircleMeter.h"
@@ -96,15 +97,20 @@ void MainComponent::draw()
     m.setColor(ENABLED_PARAM);
  
     // Layout input section
-    auto& inputLabel = m.prepare<murka::Label>(murka::MurkaShape(20, 20, getWidth() / 4 - 40, 30));
-    inputLabel.label = "INPUT";
+    auto& inputLabel = m.prepare<murka::Label>(murka::MurkaShape(20, 20, getWidth() / 3 - 40, 30));
+    inputLabel.label = "INPUT FORMAT";
     inputLabel.alignment = TextAlignment::TEXT_LEFT;
     inputLabel.draw();
 
-    // Input format scrollable list - Prepare it *before* using its shape for button placement
-    float filterButtonHeight = 20;
-    float listHeight = getHeight() - 100 - filterButtonHeight - 10; // Calculate adjusted height
-    auto& inputList = m.prepare<M1ScrollableList>(murka::MurkaShape(20, 40, getWidth() / 3 - 40, listHeight)); 
+    // Draw a subtle underline for the header
+    m.setColor(GRID_LINES_2);
+    m.drawLine(20, 50, 20 + getWidth() / 3 - 40, 50);
+
+    // Input format scrollable list - Prepare it *before* using the toggle
+    float filterToggleHeight = 24;
+    float helpTextHeight = 14;
+    float listHeight = getHeight() - 100 - filterToggleHeight - helpTextHeight - 15; // Calculate adjusted height
+    auto& inputList = m.prepare<M1ScrollableList>(murka::MurkaShape(20, 55, getWidth() / 3 - 40, listHeight)); 
     inputList.withOptions(inputFormatsList)
         .withFontSize(DEFAULT_FONT_SIZE - 4)
         .withSelectedIndex(selectedInputFormatIndex)
@@ -113,23 +119,33 @@ void MainComponent::draw()
         .withBackgroundColor(MurkaColor(BACKGROUND_GREY))
         .withOutlineColor(MurkaColor(ENABLED_PARAM))
         .withSelectedColor(MurkaColor(GRID_LINES_2));
-    // Defer drawing the list until after the button
+    // Defer drawing the list until after the toggle
 
-    // --- Input Filter Button ---
-    float filterButtonWidth = getWidth() / 3 - 40; // Match list width
-    float inputFilterButtonY = 40 + listHeight + 5; // Position below the list area
-    auto& inputFilterButton = m.prepare<M1DropdownButton>(murka::MurkaShape(20, inputFilterButtonY, filterButtonWidth, filterButtonHeight));
-    inputFilterButton.withLabel(showExactInputState ? "Filter: ==" : "Filter: <=")
-                     .withFontSize(DEFAULT_FONT_SIZE - 5)
-                     .withLabelColor(MurkaColor(ENABLED_PARAM)) // Corrected color arg
-                     .withOutlineColor(MurkaColor(ENABLED_PARAM)) // Corrected color arg
-                     .withOutline(true);
-    inputFilterButton.draw();
+    // --- Input Filter Toggle ---
+    float inputFilterToggleY = 55 + listHeight + 8; // Position below the list area
+    auto& inputFilterToggle = m.prepare<M1ToggleButton>(murka::MurkaShape(20, inputFilterToggleY, getWidth() / 3 - 40, filterToggleHeight));
+    
+    // Use a temporary bool to control the toggle
+    static bool tempInputExactState = showExactInputState;
+    tempInputExactState = showExactInputState;
+    
+    inputFilterToggle.controlling(&tempInputExactState)
+                     .withLabel("Exact match")
+                     .withFontSize(DEFAULT_FONT_SIZE - 5);
+    inputFilterToggle.draw();
 
-    if (inputFilterButton) { // Check if pressed
+    if (inputFilterToggle.changed) {
         auto* param = audioProcessor.parameters.getParameter(M1TranscoderAudioProcessor::paramShowExactInputChannels);
-        param->setValueNotifyingHost(!showExactInputState); // Toggle the value
+        param->setValueNotifyingHost(tempInputExactState);
     }
+    
+    // Help text below toggle - subtle and clean
+    m.setColor(80, 80, 80, 180); // Very subtle gray
+    m.setFontFromRawData(PLUGIN_FONT, BINARYDATA_FONT, BINARYDATA_FONT_SIZE, DEFAULT_FONT_SIZE - 6);
+    auto& inputHelpText = m.prepare<murka::Label>(murka::MurkaShape(20, inputFilterToggleY + filterToggleHeight + 4, getWidth() / 3 - 40, helpTextHeight));
+    inputHelpText.label = tempInputExactState ? "Exact channel count only" : "Up to channel count";
+    inputHelpText.alignment = TextAlignment::TEXT_LEFT;
+    inputHelpText.draw();
 
     // Now draw the input list
     inputList.draw(); 
@@ -153,13 +169,18 @@ void MainComponent::draw()
     
     // Layout output section
     m.setFontFromRawData(PLUGIN_FONT, BINARYDATA_FONT, BINARYDATA_FONT_SIZE, DEFAULT_FONT_SIZE - 3);
+    m.setColor(ENABLED_PARAM);
     auto& outputLabel = m.prepare<murka::Label>(murka::MurkaShape(2 * getWidth() / 3 + 20, 20, getWidth() / 3 - 40, 30));
-    outputLabel.label = "OUTPUT";
+    outputLabel.label = "OUTPUT FORMAT";
     outputLabel.alignment = TextAlignment::TEXT_LEFT;
     outputLabel.draw();
+    
+    // Draw a subtle underline for the header
+    m.setColor(GRID_LINES_2);
+    m.drawLine(2 * getWidth() / 3 + 20, 50, 2 * getWidth() / 3 + 20 + getWidth() / 3 - 40, 50);
 
     // Output format scrollable list
-    auto& outputList = m.prepare<M1ScrollableList>(murka::MurkaShape(2 * getWidth() / 3 + 20, 40, getWidth() / 3 - 40, listHeight)); // Use same adjusted height
+    auto& outputList = m.prepare<M1ScrollableList>(murka::MurkaShape(2 * getWidth() / 3 + 20, 55, getWidth() / 3 - 40, listHeight)); // Use same adjusted height
     outputList.withOptions(outputFormatsList)
         .withFontSize(DEFAULT_FONT_SIZE - 4)
         .withSelectedIndex(selectedOutputFormatIndex)
@@ -170,22 +191,33 @@ void MainComponent::draw()
         .withSelectedColor(MurkaColor(GRID_LINES_2))
         .withCompatibleFormats(compatibleOutputFormats)  // Pass the list of compatible formats
         .withIncompatibleColor(MurkaColor(DISABLED_PARAM)); // Use disabled color for incompatible formats
-    // Defer drawing the list until after the button
+    // Defer drawing the list until after the toggle
 
-    // --- Output Filter Button ---
-    float outputFilterButtonY = 40 + listHeight + 5; // Position below the list area
-    auto& outputFilterButton = m.prepare<M1DropdownButton>(murka::MurkaShape(2 * getWidth() / 3 + 20, outputFilterButtonY, filterButtonWidth, filterButtonHeight));
-    outputFilterButton.withLabel(showExactOutputState ? "Filter: ==" : "Filter: <=")
-                      .withFontSize(DEFAULT_FONT_SIZE - 5)
-                      .withLabelColor(MurkaColor(ENABLED_PARAM)) // Corrected color arg
-                      .withOutlineColor(MurkaColor(ENABLED_PARAM)) // Corrected color arg
-                      .withOutline(true);
-    outputFilterButton.draw();
+    // --- Output Filter Toggle ---
+    float outputFilterToggleY = 55 + listHeight + 8; // Position below the list area
+    auto& outputFilterToggle = m.prepare<M1ToggleButton>(murka::MurkaShape(2 * getWidth() / 3 + 20, outputFilterToggleY, getWidth() / 3 - 40, filterToggleHeight));
+    
+    // Use a temporary bool to control the toggle
+    static bool tempOutputExactState = showExactOutputState;
+    tempOutputExactState = showExactOutputState;
+    
+    outputFilterToggle.controlling(&tempOutputExactState)
+                      .withLabel("Exact match")
+                      .withFontSize(DEFAULT_FONT_SIZE - 5);
+    outputFilterToggle.draw();
 
-    if (outputFilterButton) { // Check if pressed
+    if (outputFilterToggle.changed) {
         auto* param = audioProcessor.parameters.getParameter(M1TranscoderAudioProcessor::paramShowExactOutputChannels);
-        param->setValueNotifyingHost(!showExactOutputState); // Toggle the value
+        param->setValueNotifyingHost(tempOutputExactState);
     }
+    
+    // Help text below toggle - subtle and clean
+    m.setColor(80, 80, 80, 180); // Very subtle gray
+    m.setFontFromRawData(PLUGIN_FONT, BINARYDATA_FONT, BINARYDATA_FONT_SIZE, DEFAULT_FONT_SIZE - 6);
+    auto& outputHelpText = m.prepare<murka::Label>(murka::MurkaShape(2 * getWidth() / 3 + 20, outputFilterToggleY + filterToggleHeight + 4, getWidth() / 3 - 40, helpTextHeight));
+    outputHelpText.label = tempOutputExactState ? "Exact channel count only" : "Up to channel count";
+    outputHelpText.alignment = TextAlignment::TEXT_LEFT;
+    outputHelpText.draw();
 
     // Now draw the output list
     outputList.draw();

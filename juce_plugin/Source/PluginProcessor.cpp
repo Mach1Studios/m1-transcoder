@@ -100,7 +100,7 @@ void M1TranscoderAudioProcessor::changeProgramName (int index, const juce::Strin
 //==============================================================================
 void M1TranscoderAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    // Setup for Mach1Decode
+    // Setup for Mach1Decode (used for decode strategy, not currently active)
     smoothedChannelCoeffs.resize(m1Decode.getFormatCoeffCount());
     spatialMixerCoeffs.resize(m1Decode.getFormatCoeffCount());
     for (int input_channel = 0; input_channel < m1Decode.getFormatChannelCount(); input_channel++) {
@@ -108,9 +108,23 @@ void M1TranscoderAudioProcessor::prepareToPlay (double sampleRate, int samplesPe
         smoothedChannelCoeffs[input_channel * 2 + 1].reset(sampleRate, (double) 0.01);
     }
     
-    // restructure output buffer
-    readBuffer.setSize(m1Decode.getFormatCoeffCount(), samplesPerBlock);
+    // Prepare buffers for transcoding
+    // Allocate for maximum possible channels (64) to be safe, or at least enough for current layout
+    // We'll use 64 as a safe upper bound for Mach1 formats
+    int maxChannels = 64; 
     
+    m_inputPointers.resize(maxChannels, nullptr);
+    m_outputPointers.resize(maxChannels, nullptr);
+    
+    int numInputChannels = getTotalNumInputChannels();
+    int numOutputChannels = getTotalNumOutputChannels();
+    
+    // Ensure buffers are large enough
+    readBuffer.setSize(juce::jmax(numInputChannels, 8), samplesPerBlock);
+    intermediaryBuffer.setSize(juce::jmax(numOutputChannels, 8), samplesPerBlock);
+    tempBuffer.setSize(juce::jmax(numOutputChannels, 8) * 2, samplesPerBlock);
+    
+    // Configure transcoding
     pendingFormatChange = true;
     reconfigureAudioTranscode();
 }
@@ -334,13 +348,13 @@ void M1TranscoderAudioProcessor::parameterChanged(const juce::String& parameterI
     }
     else if (parameterID == paramShowExactInputChannels)
     {
-        // Input filter mode changed, trigger UI update
-        pendingFormatChange = true; 
+        // Input filter mode changed, trigger reconfiguration
+        reconfigureAudioTranscode();
     }
     else if (parameterID == paramShowExactOutputChannels)
     {
-        // Output filter mode changed, trigger UI update
-        pendingFormatChange = true;
+        // Output filter mode changed, trigger reconfiguration
+        reconfigureAudioTranscode();
     }
 }
 
@@ -350,134 +364,179 @@ void M1TranscoderAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
-    static int lastInputChannels = 0;
-    static int lastOutputChannels = 0;
-
-    if ((totalNumInputChannels != lastInputChannels && abs(totalNumInputChannels - lastInputChannels) > 1) || 
-        (totalNumOutputChannels != lastOutputChannels && abs(totalNumOutputChannels - lastOutputChannels) > 1)) {
-        lastInputChannels = totalNumInputChannels;
-        lastOutputChannels = totalNumOutputChannels;
-        pendingFormatChange = true;
+    
+    // Handle pending format changes or channel count changes
+    if (pendingFormatChange) {
+        // Try to reconfigure if enough time has passed or just skip
+        // For now, just clear buffer and return to avoid noise
+        buffer.clear();
+        
+        // We can try to reconfigure here if it's cheap, but better to do it in a timer or parameter callback
+        // The original code did it here with a counter. We'll stick to the timer approach or just wait.
+        // But we need to ensure reconfigureAudioTranscode is called eventually.
+        // For this implementation, we assume reconfigureAudioTranscode is called by parameterChanged.
+        // If we need to trigger it from here, we should use a flag that the editor/timer checks.
+        
+        // However, to maintain behavior:
+        static int formatUpdateCounter = 0;
+        if (formatUpdateCounter++ > 100) {
+            formatUpdateCounter = 0;
+            reconfigureAudioTranscode();
+            pendingFormatChange = false;
+        }
+        return;
     }
+
+    // Apply input channel mutes
     for (int ch = 0; ch < buffer.getNumChannels(); ch++) {
         if (ch < inputChannelMutes.size() && inputChannelMutes[ch]) {
             buffer.clear(ch, 0, buffer.getNumSamples());
         }
     }
 
-    // Copy input to readBuffer for processing
-    if (totalNumInputChannels > 0 && totalNumOutputChannels > 0) {
-        // Only resize buffers if needed
-        if (readBuffer.getNumChannels() != totalNumInputChannels || 
-            readBuffer.getNumSamples() != buffer.getNumSamples()) {
-            try {
-                readBuffer.setSize(totalNumInputChannels, buffer.getNumSamples(), false, true, true);
-                tempBuffer.setSize(totalNumOutputChannels * 2, buffer.getNumSamples(), false, true, true);
-            }
-            catch (...) {
-                return;
-            }
-        }
-
-        // Copy input to readBuffer for processing
-        readBuffer.clear();
-        for (int channel = 0; channel < totalNumInputChannels && channel < buffer.getNumChannels(); ++channel) {
-            readBuffer.copyFrom(channel, 0, buffer, channel, 0, buffer.getNumSamples());
-        }
-        
-        // Try to process with transcoder
-        static bool needsConfigUpdate = false;
-        static std::string lastInputFormat;
-        static std::string lastOutputFormat;
-        
-        if (lastInputFormat != selectedInputFormatName || lastOutputFormat != selectedOutputFormatName) {
-            lastInputFormat = selectedInputFormatName;
-            lastOutputFormat = selectedOutputFormatName;
-            needsConfigUpdate = true;
-        }
-        
-        bool processed = false;
-        
-        // Only try processing if we're not reconfiguring
-        if (!pendingFormatChange && !needsConfigUpdate && selectedInputFormatName.length() > 0 && selectedOutputFormatName.length() > 0) {
-            std::vector<float*> readPtrs(totalNumInputChannels, nullptr);
-            std::vector<float*> outputPtrs(totalNumOutputChannels, nullptr);
+    // Main transcoding logic
+    bool processed = false;
+    
+    // Check if we have valid formats and conversion path
+    if (totalNumInputChannels > 0 && totalNumOutputChannels > 0 && 
+        !selectedInputFormatName.empty() && !selectedOutputFormatName.empty() && m_conversionValid) {
             
-            for (int i = 0; i < totalNumInputChannels; i++) {
-                readPtrs[i] = readBuffer.getWritePointer(i);
-            }
-            
-            for (int i = 0; i < totalNumOutputChannels && i < buffer.getNumChannels(); i++) {
-                outputPtrs[i] = buffer.getWritePointer(i);
-            }
-            
-            // Try direct conversion
-            try {
-                // Make sure valid conversion path
-                if (m1Transcode.processConversionPath()) {
-                    m1Transcode.processConversion(readPtrs.data(), outputPtrs.data(), buffer.getNumSamples());
-                    processed = true;
-                }
-            }
-            catch (...) {
-                // If direct processing fails,fall back to passthrough
-                processed = false;
-            }
-        }
+        // Try to acquire lock - if busy, skip processing (stutter is better than block/crash, but silence is better than stutter)
+        const juce::SpinLock::ScopedTryLockType lock(transcodeProcessLock);
         
-        // If processing failed or is not available, just copy input to output
-        if (!processed) {
-            // Passthrough - copy input channels to output
-            for (int channel = 0; channel < buffer.getNumChannels(); ++channel) {
-                if (channel >= totalNumInputChannels) {
-                    buffer.clear(channel, 0, buffer.getNumSamples());
-                }
-                else if (channel < readBuffer.getNumChannels()) {
-                    buffer.copyFrom(channel, 0, readBuffer, channel, 0, buffer.getNumSamples());
+        if (lock.isLocked()) {
+            int expectedInputChannels = m1Transcode.getInputNumChannels();
+            int expectedOutputChannels = m1Transcode.getOutputNumChannels();
+            
+            if (expectedInputChannels == totalNumInputChannels && 
+                expectedOutputChannels == totalNumOutputChannels) {
+                
+                // 1. Prepare Input
+                // Check if readBuffer needs resizing (shouldn't if prepareToPlay was called correctly)
+                if (readBuffer.getNumChannels() < totalNumInputChannels || readBuffer.getNumSamples() < buffer.getNumSamples()) {
+                    // This shouldn't happen if prepareToPlay is correct, but safety first
+                    // We can't resize here safely. Just bail.
+                } else {
+                    // Copy input to readBuffer and clear unused channels
+                    for (int ch = 0; ch < totalNumInputChannels; ch++) {
+                        if (ch < buffer.getNumChannels()) {
+                            readBuffer.copyFrom(ch, 0, buffer, ch, 0, buffer.getNumSamples());
+                        } else {
+                            readBuffer.clear(ch, 0, buffer.getNumSamples());
+                        }
+                    }
+                    
+                    // Setup input pointers
+                    if (m_inputPointers.size() >= totalNumInputChannels) {
+                        for (int i = 0; i < totalNumInputChannels; i++) {
+                            m_inputPointers[i] = readBuffer.getWritePointer(i);
+                        }
+                        
+                        // 2. Prepare Output
+                        float** outPtrs = nullptr;
+                        bool useIntermediary = false;
+                        
+                        if (buffer.getNumChannels() >= totalNumOutputChannels) {
+                            // Direct output
+                            if (m_outputPointers.size() >= totalNumOutputChannels) {
+                                for (int i = 0; i < totalNumOutputChannels; i++) {
+                                    m_outputPointers[i] = buffer.getWritePointer(i);
+                                }
+                                outPtrs = m_outputPointers.data();
+                            }
+                        } else {
+                            // Use intermediary
+                            useIntermediary = true;
+                            if (intermediaryBuffer.getNumChannels() >= totalNumOutputChannels && 
+                                intermediaryBuffer.getNumSamples() >= buffer.getNumSamples()) {
+                                
+                                if (m_outputPointers.size() >= totalNumOutputChannels) {
+                                    for (int i = 0; i < totalNumOutputChannels; i++) {
+                                        m_outputPointers[i] = intermediaryBuffer.getWritePointer(i);
+                                    }
+                                    outPtrs = m_outputPointers.data();
+                                    
+                                    // Clear intermediary
+                                    for(int i=0; i<totalNumOutputChannels; ++i)
+                                        intermediaryBuffer.clear(i, 0, buffer.getNumSamples());
+                                }
+                            }
+                        }
+                        
+                        // 3. Process
+                        if (outPtrs) {
+                            // Clear output buffer if direct (intermediary already cleared)
+                            if (!useIntermediary) {
+                                for(int i=0; i<totalNumOutputChannels; ++i)
+                                    buffer.clear(i, 0, buffer.getNumSamples());
+                            }
+                            
+                            try {
+                                m1Transcode.processConversion(m_inputPointers.data(), outPtrs, buffer.getNumSamples());
+                                processed = true;
+                            } catch (...) {
+                                // Ignore exception
+                            }
+                            
+                            // 4. Copy back if intermediary
+                            if (processed && useIntermediary) {
+                                buffer.clear();
+                                int channelsToCopy = juce::jmin(totalNumOutputChannels, buffer.getNumChannels());
+                                for (int ch = 0; ch < channelsToCopy; ch++) {
+                                    buffer.copyFrom(ch, 0, intermediaryBuffer, ch, 0, buffer.getNumSamples());
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
     }
     
-    static int levelCounter = 0;
-    if ((levelCounter++ % 4) == 0 && buffer.getNumChannels() > 0) {
-        if (inputChannelLevels.size() < buffer.getNumChannels())
-            inputChannelLevels.resize(buffer.getNumChannels(), 0.0f);
-            
-        for (int ch = 0; ch < buffer.getNumChannels(); ch++) {
-            float level = 0.0f;
-            const float* channelData = buffer.getReadPointer(ch);
-            for (int i = 0; i < buffer.getNumSamples(); i += 8) { // Only sample every 8th sample
-                level = std::max(level, std::abs(channelData[i]));
-            }
-            inputChannelLevels[ch] = 0.7f * inputChannelLevels[ch] + 0.3f * level;
-        }
-        
-        if (outputChannelLevels.size() < buffer.getNumChannels())
-            outputChannelLevels.resize(buffer.getNumChannels(), 0.0f);
-            
-        for (int ch = 0; ch < buffer.getNumChannels(); ch++) {
-            float level = 0.0f;
-            const float* channelData = buffer.getReadPointer(ch);
-            for (int i = 0; i < buffer.getNumSamples(); i += 8) { // Only sample every 8th sample
-                level = std::max(level, std::abs(channelData[i]));
-            }
-            outputChannelLevels[ch] = 0.7f * outputChannelLevels[ch] + 0.3f * level;
-        }
-    }
-
-    for (int ch = 0; ch < buffer.getNumChannels(); ch++) {
-        if (ch < outputChannelMutes.size() && outputChannelMutes[ch]) {
+    // Passthrough / Silence if not processed
+    if (!processed) {
+        // Just clear any channels beyond input count or all if we failed
+        // For now, if we failed, we might want to pass through input 1:1 if possible, or silence.
+        // The original code cleared channels > inputChannels.
+        for (int ch = totalNumInputChannels; ch < buffer.getNumChannels(); ch++) {
             buffer.clear(ch, 0, buffer.getNumSamples());
         }
     }
     
-    static int formatUpdateCounter = 0;
-    if (pendingFormatChange && formatUpdateCounter++ > 100) {
-        formatUpdateCounter = 0;
+    // Update channel level meters (optimized)
+    // Only do this every few blocks to save CPU
+    static int levelCounter = 0;
+    static int logCounter = 0;
+    if ((levelCounter++ & 3) == 0 && buffer.getNumChannels() > 0) { // & 3 is equivalent to % 4
+        int numCh = buffer.getNumChannels();
+        if (inputChannelLevels.size() < numCh) inputChannelLevels.resize(numCh, 0.0f);
+        if (outputChannelLevels.size() < numCh) outputChannelLevels.resize(numCh, 0.0f);
+            
+        for (int ch = 0; ch < numCh; ch++) {
+            float level = buffer.getMagnitude(ch, 0, buffer.getNumSamples());
+            
+            if (ch < totalNumInputChannels) {
+                inputChannelLevels[ch] = 0.7f * inputChannelLevels[ch] + 0.3f * level;
+            }
+            outputChannelLevels[ch] = 0.7f * outputChannelLevels[ch] + 0.3f * level;
+        }
         
-        reconfigureAudioTranscode();
-        pendingFormatChange = false;
+        // Log periodic stats (every ~2 seconds at 48kHz/512 buffer size)
+        if (logCounter++ > 200) {
+            logCounter = 0;
+            juce::String logMsg = "M1Transcoder Status: In=" + juce::String(totalNumInputChannels) + 
+                                  " Out=" + juce::String(totalNumOutputChannels) +
+                                  " Proc=" + (processed ? "Yes" : "No") +
+                                  " BufCh=" + juce::String(buffer.getNumChannels());
+            DBG(logMsg);
+        }
+    }
+
+    // Apply output channel mutes
+    for (int ch = 0; ch < buffer.getNumChannels(); ch++) {
+        if (ch < outputChannelMutes.size() && outputChannelMutes[ch]) {
+            buffer.clear(ch, 0, buffer.getNumSamples());
+        }
     }
 }
 
@@ -490,24 +549,37 @@ std::string M1TranscoderAudioProcessor::getTranscodeOutputFormat() const {
 }
 
 void M1TranscoderAudioProcessor::setTranscodeInputFormat(const std::string &name) {
-    if (!name.empty() && m1Transcode.getFormatFromString(name) != -1) {
-        if (selectedInputFormatName != name) { // Only update if changed
-             selectedInputFormatName = name;
-             // Set the format in the actual transcoder
-             m1Transcode.setInputFormat(m1Transcode.getFormatFromString(name));
-             pendingFormatChange = true; 
+    if (!name.empty()) {
+        int formatEnum = m1Transcode.getFormatFromString(name);
+        if (formatEnum != -1) {
+            if (selectedInputFormatName != name) {
+                selectedInputFormatName = name;
+                // We don't need to set m1Transcode here because reconfigureAudioTranscode will do it
+                // But we can do it for consistency if reconfigure is not called immediately
+                // However, we WILL call reconfigure immediately
+                reconfigureAudioTranscode();
+            }
         }
+    } else {
+        // Allow clearing the format
+        selectedInputFormatName = name;
+        reconfigureAudioTranscode();
     }
 }
 
 void M1TranscoderAudioProcessor::setTranscodeOutputFormat(const std::string &name) {
-    if (!name.empty() && m1Transcode.getFormatFromString(name) != -1) {
-        if (selectedOutputFormatName != name) {
-            selectedOutputFormatName = name;
-            // Set the format in the actual transcoder
-            m1Transcode.setOutputFormat(m1Transcode.getFormatFromString(name));
-            pendingFormatChange = true; 
+    if (!name.empty()) {
+        int formatEnum = m1Transcode.getFormatFromString(name);
+        if (formatEnum != -1) {
+            if (selectedOutputFormatName != name) {
+                selectedOutputFormatName = name;
+                reconfigureAudioTranscode();
+            }
         }
+    } else {
+        // Allow clearing the format
+        selectedOutputFormatName = name;
+        reconfigureAudioTranscode();
     }
 }
 
@@ -528,40 +600,42 @@ void M1TranscoderAudioProcessor::reconfigureAudioDecode() {
 
 // TODO: Detect any Mach1Spatial comment metadata
 void M1TranscoderAudioProcessor::reconfigureAudioTranscode() {
-    DBG("[DEBUG] Reconfiguring audio transcode");
+    // Lock to prevent processBlock from accessing m1Transcode while we modify it
+    const juce::SpinLock::ScopedLockType lock(transcodeProcessLock);
     
-    m_transcode_strategy = &M1TranscoderAudioProcessor::nullStrategy;
-
     int inputChannels = getTotalNumInputChannels();
     int outputChannels = getTotalNumOutputChannels();
     
     if (inputChannels < 1 || outputChannels < 1) {
-        DBG("[DEBUG] Reconfig: Bailing due to zero channels.");
         return;
     }
 
     bool inputFormatWasReset = false;
     bool outputFormatWasReset = false;
     
+    // Check if input format needs to be set or reset
     bool inputFormatInvalid = selectedInputFormatName.empty() || 
                              m1Transcode.getFormatFromString(selectedInputFormatName) == -1;
     bool inputChannelMismatch = false;
+    
     if (!inputFormatInvalid) {
         try {
-            bool exactMatchRequired = parameters.getParameterAsValue(paramShowExactInputChannels).getValue();
-            int selectedFormatChannels = m1Transcode.getInputNumChannels(); // Get channels for the currently selected format
+            // Temporarily set format to check channel count
+            int formatEnum = m1Transcode.getFormatFromString(selectedInputFormatName);
+            // We are locked, so this is safe
+            m1Transcode.setInputFormat(formatEnum);
+            int selectedFormatChannels = m1Transcode.getInputNumChannels();
             
+            bool exactMatchRequired = parameters.getParameterAsValue(paramShowExactInputChannels).getValue();
             if (exactMatchRequired && (selectedFormatChannels != inputChannels)) {
                 inputChannelMismatch = true;
-            } 
-
+            }
         } catch (...) {
-             inputFormatInvalid = true; // Treat exception during check as invalid
+             inputFormatInvalid = true;
         }
     }
     
     if (inputFormatInvalid || inputChannelMismatch) {
-        
         std::string newFormat = getDefaultFormatForChannelCount(inputChannels);
         if (newFormat.empty()) {
              auto availableFormats = getMatchingInputFormatNames(inputChannels);
@@ -571,19 +645,30 @@ void M1TranscoderAudioProcessor::reconfigureAudioTranscode() {
                  return;
              }
         }
-        setTranscodeInputFormat(newFormat); // This sets the name and pendingFormatChange
+        // Update selectedInputFormatName
+        // Note: setTranscodeInputFormat calls m1Transcode.setInputFormat but also checks name
+        // We can just set it directly here since we are in reconfigure
+        selectedInputFormatName = newFormat;
+        int formatEnum = m1Transcode.getFormatFromString(newFormat);
+        if (formatEnum != -1) m1Transcode.setInputFormat(formatEnum);
+        
         inputFormatWasReset = true;
     }
     
+    // Check if output format needs to be set or reset
     bool outputNeedsReset = false;
     if (selectedOutputFormatName.empty() || m1Transcode.getFormatFromString(selectedOutputFormatName) == -1) {
         outputNeedsReset = true;
     } else if (inputFormatWasReset) {
         outputNeedsReset = true;
     } else {
+        // Verify current output format is compatible
         try {
-             m1Transcode.setInputFormat(m1Transcode.getFormatFromString(selectedInputFormatName));
-             m1Transcode.setOutputFormat(m1Transcode.getFormatFromString(selectedOutputFormatName));
+             int inFmt = m1Transcode.getFormatFromString(selectedInputFormatName);
+             int outFmt = m1Transcode.getFormatFromString(selectedOutputFormatName);
+             m1Transcode.setInputFormat(inFmt);
+             m1Transcode.setOutputFormat(outFmt);
+             
              if (!m1Transcode.processConversionPath()) {
                  outputNeedsReset = true;
              }
@@ -593,65 +678,56 @@ void M1TranscoderAudioProcessor::reconfigureAudioTranscode() {
     }
 
     if (outputNeedsReset) {
-        // Find the best compatible output based on current input and host output channels + filter
         auto compatibleOutputs = getCompatibleOutputFormats(selectedInputFormatName, outputChannels);
         
         if (!compatibleOutputs.empty()) {
-            setTranscodeOutputFormat(compatibleOutputs[0]);
+            selectedOutputFormatName = compatibleOutputs[0];
+            int formatEnum = m1Transcode.getFormatFromString(selectedOutputFormatName);
+            if (formatEnum != -1) m1Transcode.setOutputFormat(formatEnum);
+            
             outputFormatWasReset = true;
         } else {
-             setTranscodeOutputFormat(""); // Clear the output format
+             selectedOutputFormatName = "";
              outputFormatWasReset = true;
         }
     }
 
+    // Final validation
     if (selectedInputFormatName.empty() || selectedOutputFormatName.empty()) {
-         m_transcode_strategy = &M1TranscoderAudioProcessor::nullStrategy;
          pendingFormatChange = false;
          return;
     }
 
     try {
-        m1Transcode.setInputFormat(m1Transcode.getFormatFromString(selectedInputFormatName));
-        m1Transcode.setOutputFormat(m1Transcode.getFormatFromString(selectedOutputFormatName));
-    } catch (...) {
-        m_transcode_strategy = &M1TranscoderAudioProcessor::nullStrategy;
-        pendingFormatChange = false;
-        return;
-    }
-    
-    // Check path validity one last time before setting strategy
-    bool conversionPathValid = m1Transcode.processConversionPath();
-    
-    if (conversionPathValid) {
-        try {
-            // Verify actual channel counts match host after setting formats
-            int actualInputChannels = m1Transcode.getInputNumChannels();
-            int actualOutputChannels = m1Transcode.getOutputNumChannels();
-            
-            if (actualInputChannels == inputChannels && actualOutputChannels == outputChannels) {
-                DBG("[DEBUG] Reconfig: Setting intermediaryBufferTranscodeStrategy.");
-                m_transcode_strategy = &M1TranscoderAudioProcessor::intermediaryBufferTranscodeStrategy;
-                
-                // If formats were reset, update the UI parameters to reflect the change
-                if (inputFormatWasReset || outputFormatWasReset) {
-                    DBG("[DEBUG] Reconfig: Updating UI parameters due to reset.");
-                }
-            } else {
-                 DBG(juce::String("[WARNING] Reconfig: Transcoder channel counts (") + juce::String(actualInputChannels) + "," + juce::String(actualOutputChannels) + ") don't match host (" + juce::String(inputChannels) + "," + juce::String(outputChannels) + ") after config. Using null strategy."); 
-                 m_transcode_strategy = &M1TranscoderAudioProcessor::nullStrategy;
+        int inFmt = m1Transcode.getFormatFromString(selectedInputFormatName);
+        int outFmt = m1Transcode.getFormatFromString(selectedOutputFormatName);
+        
+        m1Transcode.setInputFormat(inFmt);
+        m1Transcode.setOutputFormat(outFmt);
+        
+        // Calculate conversion path
+        bool valid = m1Transcode.processConversionPath();
+        m_conversionValid = valid;
+        
+        if (valid) {
+            auto path = m1Transcode.getFormatConversionPath();
+            juce::String pathStr = "M1Transcoder Path: " + juce::String(selectedInputFormatName) + " -> ";
+            for (size_t i = 0; i < path.size(); ++i) {
+                pathStr += juce::String(m1Transcode.getFormatName(path[i]));
+                if (i < path.size() - 1) pathStr += " -> ";
             }
-        } catch (...) {
-            DBG("[ERROR] Reconfig: Exception while getting channel counts/setting strategy.");
-            m_transcode_strategy = &M1TranscoderAudioProcessor::nullStrategy;
+            pathStr += " (" + juce::String(selectedOutputFormatName) + ")";
+            DBG(pathStr);
+        } else {
+            DBG("M1Transcoder: Conversion Path Invalid for " + juce::String(selectedInputFormatName) + " -> " + juce::String(selectedOutputFormatName));
         }
-    } else {
-         DBG("[WARNING] Reconfig: Final conversion path invalid. Using null strategy.");
-         m_transcode_strategy = &M1TranscoderAudioProcessor::nullStrategy;
+        
+    } catch (...) {
+        m_conversionValid = false;
+        DBG("M1Transcoder: Exception calculating path");
     }
     
-    DBG("[DEBUG] Reconfig finished.");
-    pendingFormatChange = false; // Configuration attempt complete
+    pendingFormatChange = false;
 }
 
 //==============================================================================
