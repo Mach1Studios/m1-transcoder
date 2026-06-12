@@ -419,7 +419,9 @@ $(document).ready(async function() {
 		tempDir = "\"" + tempDir + "\"";
 
 		if (window.inputAudioFiles.length == 1) {
-			if (window.fromProToolsNeedsChannelReOrdering) {
+			const shouldReorderProToolsInput = window.fromProToolsNeedsChannelReOrdering;
+
+			if (shouldReorderProToolsInput) {
 				// TODO: Make if statements based on channelCount
 				try {
 					exec("cd "+tempDir+" && "+ffmpeg+' -y -i "'+window.inputAudioFiles[0]+'" -map_channel 0.0.0 -c:a '+window.OutputBitDepthShort+'le 000.wav -map_channel 0.0.1 -c:a '+window.OutputBitDepthShort+'le 001.wav -map_channel 0.0.2 -c:a '+window.OutputBitDepthShort+'le 002.wav -map_channel 0.0.3 -c:a '+window.OutputBitDepthShort+'le 003.wav -map_channel 0.0.4 -c:a '+window.OutputBitDepthShort+'le 004.wav -map_channel 0.0.5 -c:a '+window.OutputBitDepthShort+'le 005.wav -map_channel 0.0.6 -c:a '+window.OutputBitDepthShort+'le 006.wav -map_channel 0.0.7 -c:a '+window.OutputBitDepthShort+'le 007.wav', function(error, stdout, stderr) {
@@ -440,6 +442,7 @@ $(document).ready(async function() {
 							log.error('exec error: ', error);
 						}
 					});
+					window.fromProToolsNeedsChannelReOrdering = false;
 				} catch (err) {
 					log.info("[fromProTools] Recombined the multi-mono into a discretely ordered 8ch file");
 				}
@@ -484,7 +487,7 @@ $(document).ready(async function() {
 						log.info("Trimmed number of channels to: " + window.trim_to);
 					}
 				}
-			} else {
+			} else if (!shouldReorderProToolsInput) {
 				// We didnt need to trim and the file wasnt from PT
 				try {
 					exec("cd "+tempDir+" && "+ffmpeg+' -y -i "'+window.inputAudioFiles[0]+'" -c:a '+window.OutputBitDepthShort+'le inputspatialaudio.wav', function(error, stdout, stderr) {

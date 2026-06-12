@@ -1,7 +1,7 @@
 {
   "name": "M1-Transcoder",
   "productName": "M1-Transcoder",
-  "version": "2.3.20260323",
+  "version": "2.3.20260612",
   "description": "Mach1 Spatial layback/conversion application",
   "main": "app/main.js",
   "scripts": {
