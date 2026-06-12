@@ -149,16 +149,40 @@ $(document).ready(async function() {
 		return false;
 	};
 
+	function getFFprobePath() {
+		const nodePath = require('path');
+		const { ipcRenderer } = require('electron');
+		const isWin = process.platform === "win32";
+		const dataPath = nodePath.join(ipcRenderer.sendSync('get-app-data-path'), 'Mach1');
+
+		return nodePath.join(dataPath, isWin ? "ffprobe.exe" : "ffprobe");
+	}
+
 	function getChannelCount(audioFilePath) {
-		const { execSync } = require('child_process');
-		const ffprobeCommand = `ffprobe -v error -select_streams a:0 -show_entries stream=channels -of default=noprint_wrappers=1:nokey=1 "${audioFilePath}"`;
-	
+		const { execFileSync } = require('child_process');
+		const ffprobePath = getFFprobePath();
+
 		try {
-			const stdout = execSync(ffprobeCommand, { encoding: 'utf8' });
+			const stdout = execFileSync(ffprobePath, [
+				'-v', 'error',
+				'-select_streams', 'a:0',
+				'-show_entries', 'stream=channels',
+				'-of', 'default=noprint_wrappers=1:nokey=1',
+				audioFilePath,
+			], {
+				encoding: 'utf8',
+				windowsHide: true,
+			});
 			const channelCount = parseInt(stdout.trim(), 10);
+
+			if (Number.isNaN(channelCount)) {
+				throw new Error(`Unable to parse ffprobe channel count from: ${stdout}`);
+			}
+
 			return channelCount;
 		} catch (error) {
-			console.error(`Error getting channel count: ${error.stderr}`);
+			const stderr = error.stderr ? error.stderr.toString() : error.message;
+			console.error(`Error getting channel count with ${ffprobePath}: ${stderr}`);
 			throw error;
 		}
 	}
