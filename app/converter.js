@@ -187,6 +187,17 @@ $(document).ready(async function() {
 		}
 	}
 
+	function getMach1SpatialChannelCount(audioFilePath) {
+		const trimmedChannelCounts = {
+			'Mach1Spatial-4': 4,
+			'Mach1Spatial-8': 8,
+			'Mach1Spatial-12': 12,
+			'Mach1Spatial-14': 14,
+		};
+
+		return trimmedChannelCounts[window.trim_to] || getChannelCount(audioFilePath);
+	}
+
 	// Checks if conditions met and returns appropriate recipe to be processed
 	function selectRecipe(variables, recipes) {
 		log.info("SELECTING RECIPE");
@@ -692,7 +703,7 @@ $(document).ready(async function() {
 			}
 		}
 		//switch for audio only conversion
-		else if ((window.inputAudioFiles === undefined || window.inputAudioFiles.length >= 1) && (selectedOutputType == 7 || selectedOutputType == 8 || selectedOutputType == 13 || selectedOutputType == 14 || selectedOutputType == 15 || selectedOutputType == 16 || selectedOutputType == 17 || selectedOutputType == 18 || selectedOutputType == 19 || selectedOutputType == 20 || selectedOutputType == 21 || selectedOutputType == 22 || selectedOutputType == 23 || selectedOutputType == 24 || selectedOutputType == 25 || selectedOutputType == 28)) {
+		else if ((window.inputAudioFiles === undefined || window.inputAudioFiles.length >= 1) && (selectedOutputType == 7 || selectedOutputType == 8 || selectedOutputType == 13 || selectedOutputType == 14 || selectedOutputType == 15 || selectedOutputType == 16 || selectedOutputType == 17 || selectedOutputType == 18 || selectedOutputType == 19 || selectedOutputType == 20 || selectedOutputType == 21 || selectedOutputType == 22 || selectedOutputType == 23 || selectedOutputType == 24 || selectedOutputType == 25 || selectedOutputType == 28 || selectedOutputType == 29)) {
 			$("#OutputFileType select").find("option").show().not("option[value='2']").hide();
 			if (selectedOutputFileType != 2) {
 				$("#OutputFileType select").val('2');
@@ -1073,6 +1084,7 @@ $(document).ready(async function() {
 				M1SPATIALSAMSUNGVR: '26',
 				APPLESPATIAL51SIDE: '27',
 				ADM712: '28',
+				M1SPATIAL_STEREO_FOLDDOWN: '29',
 				CUSTOMFORMAT: '99'
 			};
 
@@ -6707,6 +6719,27 @@ $(document).ready(async function() {
 					],
 				},
 
+				// --- M1SPATIAL to Stereo FoldDown ---
+
+				{
+					conditions: {
+						inputAudioFilesLength: 1,
+						selectedOutputType: OutputTypes.M1SPATIAL_STEREO_FOLDDOWN,
+						outputFileTypeKey: 'WAV',
+						hasStereoAudioFile: false,
+						hasVideoFile: false,
+					},
+					recipe: [
+						{
+							process_kind: 'm1spatial_stereo_folddown',
+							bitdepth: window.OutputBitDepthShort,
+							channel_count: () => getMach1SpatialChannelCount(window.inputAudioFiles[0]),
+							input_filename: 'inputspatialaudio.wav',
+							output_filename: outputVideoFilename,
+						},
+					],
+				},
+
 				// --- M1SPATIAL to 7.1.2 ADM Channel Bed for ADM or Dolby Atmos usage ---
 
 				// Audio only uncompressed WAV without stereo
@@ -6819,6 +6852,7 @@ $(document).ready(async function() {
             // Map full format names to shortened versions
 			const formatNameMapping = {
 				"Mach1 Spatial": "Mach1_Spatial",
+				"Mach1 Spatial -> Stereo FoldDown": "Mach1_Spatial_Stereo_FoldDown",
 				"Mach1 Spatial [SamsungVR Sideload 4x2]": "Mach1_Spatial_SamsungVR",
 				"Mach1 Horizon": "Mach1_Horizon",
 				"Mach1 Horizon Pairs (Single Stream)": "Mach1_Horizon_Pairs",

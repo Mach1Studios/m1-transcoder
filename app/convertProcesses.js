@@ -3,6 +3,7 @@ const util = require('util');
 const exec = util.promisify(require('child_process').exec);
 var child_process = require('child_process');
 const log = require('electron-log');
+const { getStereoFoldDownFilter } = require('./stereoFoldDown');
 log.catchErrors(options = {});
 
 // $(document).ready(function() {
@@ -627,6 +628,21 @@ function runProcess(processData) {
 		*/
 		//
 		
+		case "m1spatial_stereo_folddown":
+			log.info(" executing " + processData["process_kind"]);
+
+			const foldDownFilter = getStereoFoldDownFilter(processData["channel_count"]);
+			var call = ["cd ", tempDir,
+				"&&",
+				ffmpeg, " -y -i ", processData["input_filename"],
+				` -af "${foldDownFilter}"`,
+				" -c:a ", processData["bitdepth"] + "le ", processData["output_filename"]
+			];
+			var callString = call.join(' ');
+
+			return runExec(callString);
+			break;
+
 		case "m1transcode_spatial2horizon":
 			log.info(" executing " + processData["process_kind"]);
 			var call = ["cd ", tempDir,
