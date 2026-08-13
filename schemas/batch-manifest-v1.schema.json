@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mach1.tech/schemas/m1-transcoder/batch-manifest-v1.schema.json",
+  "title": "M1-Transcoder Batch Manifest",
+  "type": "object",
+  "required": ["kind", "schemaVersion", "jobs"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "kind": {
+      "const": "mach1-transcoder.batch"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "catalogVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "baseDirectory": {
+      "type": "string"
+    },
+    "defaults": {
+      "$ref": "#/$defs/defaults"
+    },
+    "jobs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/job"
+      }
+    }
+  },
+  "$defs": {
+    "pathValue": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "minLength": 1},
+        {
+          "type": "object",
+          "required": ["path"],
+          "properties": {
+            "path": {"type": "string", "minLength": 1}
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "defaults": {
+      "type": "object",
+      "properties": {
+        "concurrency": {"const": 1},
+        "collision": {"enum": ["fail", "overwrite"]},
+        "keepFailedWorkspace": {"type": "boolean"},
+        "reports": {
+          "type": "object",
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "referenceSampleRate": {"type": "integer", "minimum": 8000}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "job": {
+      "type": "object",
+      "required": ["id", "inputs", "output"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "enabled": {"type": "boolean"},
+        "inputs": {
+          "type": "object",
+          "required": ["spatialAudio"],
+          "properties": {
+            "spatialAudio": {
+              "type": "object",
+              "required": ["format", "files"],
+              "properties": {
+                "format": {
+                  "enum": ["m1spatial-4", "m1spatial-8", "m1spatial-12", "m1spatial-14"]
+                },
+                "layout": {
+                  "enum": ["interleaved", "horizon-four-stereo", "multi-mono"]
+                },
+                "files": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {"type": "string", "minLength": 1}
+                },
+                "proToolsOrder": {
+                  "enum": ["auto", "none", "pro-tools-8"]
+                }
+              },
+              "additionalProperties": false
+            },
+            "staticStereo": {"$ref": "#/$defs/pathValue"},
+            "video": {"$ref": "#/$defs/pathValue"},
+            "customFormatJson": {"$ref": "#/$defs/pathValue"}
+          },
+          "additionalProperties": false
+        },
+        "output": {
+          "type": "object",
+          "required": ["format", "fileType"],
+          "properties": {
+            "format": {"type": "string", "minLength": 1},
+            "fileType": {"type": "string", "minLength": 1},
+            "layout": {"enum": ["multichannel", "multi-mono"]},
+            "path": {"type": ["string", "null"]},
+            "directory": {"type": ["string", "null"]},
+            "basename": {"type": ["string", "null"]},
+            "collision": {"enum": ["fail", "overwrite"]}
+          },
+          "additionalProperties": false
+        },
+        "reports": {
+          "type": "object",
+          "properties": {
+            "enabled": {"type": "boolean"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

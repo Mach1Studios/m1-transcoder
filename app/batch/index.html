@@ -1,0 +1,99 @@
+<!doctype html>
+<html class="dark">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Batch Convert</title>
+	<link rel="stylesheet" href="../fonts.css">
+	<link rel="stylesheet" href="batch.css">
+</head>
+<body>
+	<header>
+		<div>
+			<div class="eyebrow">M1-TRANSCODER</div>
+			<h1>Batch Convert</h1>
+		</div>
+		<div id="batch-state">Ready</div>
+	</header>
+
+	<nav class="toolbar">
+		<button id="add-files">Add Inputs</button>
+		<button id="group-horizon">Group 4 as Horizon</button>
+		<button id="load-manifest">Load Manifest</button>
+		<button id="save-manifest">Save Manifest</button>
+		<span class="spacer"></span>
+		<select id="apply-format"></select>
+		<button id="apply-format-button">Apply Format</button>
+		<select id="apply-output-layout">
+			<option value="multichannel">Multichannel</option>
+			<option value="multi-mono">Multi-Mono</option>
+		</select>
+		<button id="apply-output-layout-button">Apply Layout</button>
+		<button id="apply-folder">Apply Folder</button>
+	</nav>
+
+	<main id="drop-zone">
+		<div class="drop-message" id="drop-message">
+			Drop spatial audio files to create one row per file
+		</div>
+		<div class="matrix-wrap">
+			<table class="matrix">
+				<thead>
+					<tr>
+						<th class="compact">On</th>
+						<th>Spatial Input / Group</th>
+						<th>Input Format</th>
+						<th>Output Format</th>
+						<th>File Type</th>
+						<th>Output Layout</th>
+						<th>Destination</th>
+						<th class="compact">Report</th>
+						<th>Status</th>
+						<th class="compact"></th>
+					</tr>
+				</thead>
+				<tbody id="matrix-body"></tbody>
+			</table>
+		</div>
+	</main>
+
+	<footer>
+		<div class="footer-actions">
+			<button id="clear-completed">Clear Completed</button>
+			<button id="show-report" disabled>Aggregate Report</button>
+		</div>
+		<div class="footer-actions">
+			<button id="cancel" disabled>Cancel</button>
+			<button id="run" class="primary">Run Batch</button>
+		</div>
+	</footer>
+
+	<template id="inspector-template">
+		<tr class="inspector">
+			<td colspan="10">
+				<div class="inspector-grid">
+					<label>Input Layout<select data-field="layout">
+						<option value="interleaved">Interleaved</option>
+						<option value="horizon-four-stereo">Four Stereo Horizon Files</option>
+						<option value="multi-mono">Multi-Mono</option>
+					</select></label>
+					<label>Channel Order<select data-field="pro-tools-order">
+						<option value="auto">Detect / Resolve</option>
+						<option value="none">Native Mach1</option>
+						<option value="pro-tools-8">Pro Tools 8-channel</option>
+					</select></label>
+					<label>Static Stereo<input data-field="static-stereo" type="text" placeholder="Optional path"></label>
+					<label>Custom JSON<input data-field="custom-json" type="text" placeholder="Optional path"></label>
+					<label>Video<input data-field="video" type="text" placeholder="Optional path"></label>
+					<label>Collision<select data-field="collision">
+						<option value="fail">Refuse overwrite</option>
+						<option value="overwrite">Overwrite</option>
+					</select></label>
+				</div>
+			</td>
+		</tr>
+	</template>
+
+	<script src="batch.js"></script>
+</body>
+</html>

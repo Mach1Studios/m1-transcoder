@@ -1094,22 +1094,29 @@ $(document).ready(async function() {
 				'2': 'WAV',
 				'3': 'MP4',
 				'4': 'MOV',
-				'5': 'MP4',
-				'6': 'MP4',
-				'7': 'MP4',
-				'8': 'MOV',
-				'9': 'MOV',
-				'10': 'MOV',
+				'5': 'MP4_YOUTUBE_MONO',
+				'6': 'MP4_YOUTUBE_TOP_BOTTOM',
+				'7': 'MP4_YOUTUBE_LEFT_RIGHT',
+				'8': 'MOV_YOUTUBE_MONO',
+				'9': 'MOV_YOUTUBE_TOP_BOTTOM',
+				'10': 'MOV_YOUTUBE_LEFT_RIGHT',
 				'11': 'OGG',
 				'12': 'AIF',
 				'13': 'OPUS',
-				'14': 'MP4',
+				'14': 'MP4_GENERATED',
 			};
 
 			// Extension mapping
 			const PreferredExtensions = {
 				'MP4': 'mp4',
 				'MOV': 'mov',
+				'MP4_YOUTUBE_MONO': 'mp4',
+				'MP4_YOUTUBE_TOP_BOTTOM': 'mp4',
+				'MP4_YOUTUBE_LEFT_RIGHT': 'mp4',
+				'MOV_YOUTUBE_MONO': 'mov',
+				'MOV_YOUTUBE_TOP_BOTTOM': 'mov',
+				'MOV_YOUTUBE_LEFT_RIGHT': 'mov',
+				'MP4_GENERATED': 'mp4',
 				'M4A': 'm4a',
 				'WAV': 'wav',
 				'OGG': 'ogg',
@@ -2644,7 +2651,7 @@ $(document).ready(async function() {
 				{
 					conditions: {
 					selectedOutputType: OutputTypes.ACNSN3D,
-					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					outputFileTypeKey: 'MP4_YOUTUBE_MONO',
 					hasStereoAudioFile: false,
 					hasVideoFile: true,
 					},
@@ -2693,7 +2700,7 @@ $(document).ready(async function() {
 				{
 					conditions: {
 					selectedOutputType: OutputTypes.ACNSN3D,
-					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					outputFileTypeKey: 'MP4_YOUTUBE_MONO',
 					hasStereoAudioFile: true,
 					hasVideoFile: true,
 					},
@@ -2828,7 +2835,7 @@ $(document).ready(async function() {
 				{
 					conditions: {
 					selectedOutputType: OutputTypes.ACNSN3D,
-					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					outputFileTypeKey: 'MP4_YOUTUBE_TOP_BOTTOM',
 					hasStereoAudioFile: false,
 					hasVideoFile: true,
 					},
@@ -2884,7 +2891,7 @@ $(document).ready(async function() {
 				{
 					conditions: {
 					selectedOutputType: OutputTypes.ACNSN3D,
-					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					outputFileTypeKey: 'MP4_YOUTUBE_TOP_BOTTOM',
 					hasStereoAudioFile: true,
 					hasVideoFile: true,
 					},
@@ -2935,7 +2942,7 @@ $(document).ready(async function() {
 				{
 					conditions: {
 					selectedOutputType: OutputTypes.ACNSN3D,
-					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					outputFileTypeKey: 'MP4_YOUTUBE_LEFT_RIGHT',
 					hasStereoAudioFile: false,
 					hasVideoFile: true,
 					},
@@ -2991,7 +2998,7 @@ $(document).ready(async function() {
 				{
 					conditions: {
 					selectedOutputType: OutputTypes.ACNSN3D,
-					outputFileTypeKey: 'MP4', // Audio & Video compressed
+					outputFileTypeKey: 'MP4_YOUTUBE_LEFT_RIGHT',
 					hasStereoAudioFile: true,
 					hasVideoFile: true,
 					},
@@ -3147,7 +3154,7 @@ $(document).ready(async function() {
 				{
 					conditions: {
 					selectedOutputType: OutputTypes.ACNSN3D,
-					outputFileTypeKey: 'MOV', // Audio & Video uncompressed
+					outputFileTypeKey: 'MOV_YOUTUBE_MONO',
 					hasStereoAudioFile: false,
 					hasVideoFile: true,
 					},
@@ -3198,7 +3205,7 @@ $(document).ready(async function() {
 				{
 					conditions: {
 					selectedOutputType: OutputTypes.ACNSN3D,
-					outputFileTypeKey: 'MOV', // Audio & Video uncompressed
+					outputFileTypeKey: 'MOV_YOUTUBE_MONO',
 					hasStereoAudioFile: true,
 					hasVideoFile: true,
 					},
@@ -3250,7 +3257,7 @@ $(document).ready(async function() {
 				{
 					conditions: {
 					selectedOutputType: OutputTypes.ACNSN3D,
-					outputFileTypeKey: 'MOV', // Audio & Video uncompressed
+					outputFileTypeKey: 'MOV_YOUTUBE_TOP_BOTTOM',
 					hasStereoAudioFile: false,
 					hasVideoFile: true, 
 					},
@@ -3301,7 +3308,7 @@ $(document).ready(async function() {
 				{
 					conditions: {
 					selectedOutputType: OutputTypes.ACNSN3D,
-					outputFileTypeKey: 'MOV', // Audio & Video uncompressed
+					outputFileTypeKey: 'MOV_YOUTUBE_TOP_BOTTOM',
 					hasStereoAudioFile: true,
 					hasVideoFile: true,
 					},
@@ -3353,7 +3360,7 @@ $(document).ready(async function() {
 				{
 					conditions: {
 					selectedOutputType: OutputTypes.ACNSN3D,
-					outputFileTypeKey: 'MOV', // Audio & Video uncompressed
+					outputFileTypeKey: 'MOV_YOUTUBE_LEFT_RIGHT',
 					hasStereoAudioFile: false,
 					hasVideoFile: true,
 					},
@@ -3404,7 +3411,7 @@ $(document).ready(async function() {
 				{
 					conditions: {
 					selectedOutputType: OutputTypes.ACNSN3D,
-					outputFileTypeKey: 'MOV', // Audio & Video uncompressed
+					outputFileTypeKey: 'MOV_YOUTUBE_LEFT_RIGHT',
 					hasStereoAudioFile: true,
 					hasVideoFile: true,
 					},
@@ -6655,7 +6662,7 @@ $(document).ready(async function() {
 					conditions: {
 					inputAudioFilesLength: 1,
 					selectedOutputType: OutputTypes.APPLESPATIAL51SIDE,
-					outputFileTypeKey: 'M4A', // Audio & Video Compressed (generated video)
+					outputFileTypeKey: 'MP4_GENERATED',
 					hasStereoAudioFile: false,
 					hasVideoFile: false, // Video is generated
 					},
@@ -6689,7 +6696,7 @@ $(document).ready(async function() {
 					conditions: {
 					inputAudioFilesLength: 1,
 					selectedOutputType: OutputTypes.APPLESPATIAL51SIDE,
-					outputFileTypeKey: 'M4A', // Audio & Video Compressed (generated video)
+					outputFileTypeKey: 'MP4_GENERATED',
 					hasStereoAudioFile: true,
 					hasVideoFile: false, // Video is generated
 					},
@@ -6754,6 +6761,7 @@ $(document).ready(async function() {
 					recipe: [
 					{
 						process_kind: 'm1transcode',
+						master_gain: '0',
 						input_filename: 'inputspatialaudio.wav',
 						input_format: 'M1Spatial',
 						output_filename: outputVideoFilename,
@@ -6774,9 +6782,17 @@ $(document).ready(async function() {
 					},
 					recipe: [
 					{
-						process_kind: 'm1transcode',
+						process_kind: '8_channel_pcm_to_wav_plus_stereo',
+						bitdepth: window.OutputBitDepthShort,
 						input_filename: 'inputspatialaudio.wav',
-						input_format: 'M1SpatialS',
+						stereo_filename: window.inputStereoFiles[0],
+						output_filename: 'MERGED.wav',
+					},
+					{
+						process_kind: 'm1transcode',
+						master_gain: '0',
+						input_filename: 'MERGED.wav',
+						input_format: 'M1Spatial+S',
 						output_filename: outputVideoFilename,
 						output_format: 'DolbyAtmosSevenOneTwo',
 						output_channelnum: '0',
@@ -7080,6 +7096,44 @@ $(document).ready(async function() {
 
 			// Clean up and show result
 			if (overallSuccess) {
+				if (!isBatchMode && inputAudioFilename && outputVideoFilename) {
+					const outputFormatLegacyValue = $('#OutputType option:selected').val();
+					const resolvedInputFormat = window.trim_to
+						? window.trim_to.toLowerCase().replace('mach1spatial-', 'm1spatial-')
+						: 'm1spatial-8';
+					const isGainMatchedEightToFour = processingRequest.some((process) => (
+						process.process_kind === 'm1transcode'
+						&& process.input_format === 'M1Spatial'
+						&& process.output_format === 'M1Horizon'
+					));
+					const gainActions = {
+						masterGainDb: isGainMatchedEightToFour ? -3.010299956639812 : 0,
+						normalized: processingRequest.some((process) => process.process_kind === 'm1transcode_normalize'),
+						legacyGainSteps: processingRequest
+							.filter((process) => process.process_kind === 'ffmpeg-gain')
+							.map((process) => process.gain),
+						matrixPolicy: isGainMatchedEightToFour
+							? 'mach1-transcode-constant-power-with-minus-3.0103-db-gain-match'
+							: null,
+					};
+					try {
+						$('#batchProgressText').text('Analyzing gain and loudness…');
+						await ipcRenderer.invoke('gain-report:analyze-single', {
+							inputPath: inputAudioFilename,
+							outputPath: outputVideoFilename,
+							inputFormat: resolvedInputFormat,
+							outputFormatLegacyValue,
+							proToolsOrder: window.fromProToolsNeedsChannelReOrdering
+								? 'pro-tools-8'
+								: 'none',
+							gainActions,
+						});
+					} catch (reportError) {
+						log.error('Unable to create gain report:', reportError);
+						ShowMessage('Rendered successfully; gain report analysis failed.', true);
+					}
+				}
+
 				// clear up
 				$('#Audio input[type="text"]').val("");
 				$('#StereoAudio input[type="text"]').val("");

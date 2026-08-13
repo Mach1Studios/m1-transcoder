@@ -1,11 +1,13 @@
 {
   "name": "M1-Transcoder",
   "productName": "M1-Transcoder",
-  "version": "2.7.20260722",
+  "version": "2.7.20260729",
   "description": "Mach1 Spatial layback/conversion application",
   "main": "app/main.js",
   "scripts": {
     "dev": "electron .",
+    "batch": "node app/batch-cli.js",
+    "test": "node --test test/*.test.js app/stereoFoldDown.test.js",
     "postinstall": "electron-builder install-app-deps",
     "package-mac": "electron-builder",
     "package-win": "electron-builder --x64"

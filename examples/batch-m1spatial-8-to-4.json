@@ -1,0 +1,47 @@
+{
+  "$schema": "../schemas/batch-manifest-v1.schema.json",
+  "kind": "mach1-transcoder.batch",
+  "schemaVersion": 1,
+  "catalogVersion": 1,
+  "baseDirectory": ".",
+  "defaults": {
+    "concurrency": 1,
+    "collision": "fail",
+    "keepFailedWorkspace": true,
+    "reports": {
+      "enabled": true,
+      "referenceSampleRate": 48000
+    }
+  },
+  "jobs": [
+    {
+      "id": "spatial-mix-8-to-4",
+      "enabled": true,
+      "inputs": {
+        "spatialAudio": {
+          "format": "m1spatial-8",
+          "layout": "interleaved",
+          "files": [
+            "/path/to/SpatialMix.wav"
+          ],
+          "proToolsOrder": "pro-tools-8"
+        },
+        "staticStereo": null,
+        "video": null,
+        "customFormatJson": null
+      },
+      "output": {
+        "format": "m1spatial-4",
+        "fileType": "wav",
+        "layout": "multichannel",
+        "path": null,
+        "directory": null,
+        "basename": null,
+        "collision": "fail"
+      },
+      "reports": {
+        "enabled": true
+      }
+    }
+  ]
+}

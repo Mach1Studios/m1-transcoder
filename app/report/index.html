@@ -1,0 +1,74 @@
+<!doctype html>
+<html class="dark">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Gain & Loudness Report</title>
+	<link rel="stylesheet" href="../fonts.css">
+	<link rel="stylesheet" href="report.css">
+</head>
+<body>
+	<header>
+		<div>
+			<div class="eyebrow">M1-TRANSCODER</div>
+			<h1>Gain & Loudness Report</h1>
+		</div>
+		<div class="actions">
+			<button id="save-json">Save JSON</button>
+			<button id="save-csv">Export CSV</button>
+			<button id="reveal-output">Reveal Output</button>
+		</div>
+	</header>
+
+	<section id="summary" class="summary"></section>
+	<div id="reference-note" class="reference-note"></div>
+
+	<main>
+		<table class="results">
+			<thead>
+				<tr>
+					<th>Status</th>
+					<th>Input</th>
+					<th>Output</th>
+					<th>Before LUFS</th>
+					<th>After LUFS</th>
+					<th>Δ LU</th>
+					<th>After dBTP</th>
+				</tr>
+			</thead>
+			<tbody id="result-rows"></tbody>
+		</table>
+
+		<section id="details" class="details empty">
+			<div class="details-header">
+				<div>
+					<div class="eyebrow">SELECTED RENDER</div>
+					<h2 id="details-title">Select a row for channel details</h2>
+				</div>
+				<div id="review-badge"></div>
+			</div>
+			<div id="gain-actions" class="gain-actions"></div>
+			<div id="error-details" class="error-details"></div>
+			<div id="warnings" class="warnings"></div>
+			<div class="channel-grid">
+				<div>
+					<h3>Before — Native Channels</h3>
+					<table>
+						<thead><tr><th>Channel</th><th>Peak dBFS</th><th>RMS dBFS</th></tr></thead>
+						<tbody id="before-channels"></tbody>
+					</table>
+				</div>
+				<div>
+					<h3>After — Native Channels</h3>
+					<table>
+						<thead><tr><th>Channel</th><th>Peak dBFS</th><th>RMS dBFS</th></tr></thead>
+						<tbody id="after-channels"></tbody>
+					</table>
+				</div>
+			</div>
+		</section>
+	</main>
+
+	<script src="report.js"></script>
+</body>
+</html>

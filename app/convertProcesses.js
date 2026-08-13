@@ -674,9 +674,13 @@ function runProcess(processData) {
 
 		case "m1transcode":
 			log.info(" executing " + processData["process_kind"]);
+			var transcodeMasterGain = (
+				processData["input_format"] === "M1Spatial"
+				&& processData["output_format"] === "M1Horizon"
+			) ? "-3.010299956639812" : processData["master_gain"];
 			var call = ["cd ", tempDir,
 				" && ",
-				m1transcode, ' m1transcode -in-file "', processData["input_filename"], '" -in-fmt ', processData["input_format"], ' -out-file ', processData["output_filename"], ' -out-fmt ', processData["output_format"], ' -master-gain ', processData["master_gain"], ' -out-file-chans ', processData["output_channelnum"],
+				m1transcode, ' m1transcode -in-file "', processData["input_filename"], '" -in-fmt ', processData["input_format"], ' -out-file ', processData["output_filename"], ' -out-fmt ', processData["output_format"], ' -master-gain ', transcodeMasterGain, ' -out-file-chans ', processData["output_channelnum"],
 			];
 			var callString = call.join('');
 

@@ -3,6 +3,11 @@ const path = require('path')
 const url = require('url')
 const fs = require('fs')
 const util = require('util');
+const {BatchRunner} = require('../lib/BatchRunner')
+const {getOutputFormatFromLegacyValue} = require('../lib/catalog/formats')
+const {analyzeFilePair} = require('../lib/reports/audioAnalysis')
+const {saveCsvReport, saveJsonReport} = require('../lib/reports/reportIO')
+const {resolveToolchain} = require('../lib/toolchain/resolveToolchain')
 
 const dataPath = path.join(app.getPath('appData'), 'Mach1/')
 const isWin = process.platform === "win32";
@@ -50,6 +55,13 @@ ipcMain.handle('show-save-dialog', async () => {
     }
 });
 
+ipcMain.handle('show-folder-dialog', async () => {
+    const result = await dialog.showOpenDialog({
+        properties: ['openDirectory', 'createDirectory']
+    });
+    return result.canceled ? undefined : result.filePaths[0];
+});
+
 ipcMain.on('get-script-path', (event) => {
   const scriptPath = path.dirname(require.main.filename);
   event.returnValue = scriptPath;
@@ -94,6 +106,14 @@ const menuTemplate = [
     {
         label: 'File',
         submenu: [      
+            {
+                label: 'Batch Convert…',
+                accelerator: 'CmdOrCtrl+Shift+B',
+                click: function() { createBatchWindow() }
+            },
+            {
+                type: 'separator'
+            },
             {
                 role: 'quit',
                 label: 'Quit',
@@ -154,6 +174,149 @@ const menuTemplate = [
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
 let mainWindow
+let batchWindow
+let reportWindow
+let activeBatchRunner
+let latestReport
+
+function createBatchWindow() {
+    if (batchWindow && !batchWindow.isDestroyed()) {
+        batchWindow.focus()
+        return batchWindow
+    }
+    batchWindow = new BrowserWindow({
+        width: 1180,
+        height: 720,
+        minWidth: 920,
+        minHeight: 560,
+        title: 'M1-Transcoder — Batch Convert',
+        backgroundColor: '#282828',
+        webPreferences: { nodeIntegration: true, contextIsolation: false }
+    })
+    batchWindow.loadFile(path.join(__dirname, 'batch', 'index.html'))
+    batchWindow.on('closed', function() {
+        batchWindow = null
+    })
+    return batchWindow
+}
+
+function showReportWindow(report) {
+    latestReport = report
+    if (reportWindow && !reportWindow.isDestroyed()) {
+        reportWindow.webContents.send('report:updated', report)
+        reportWindow.focus()
+        return reportWindow
+    }
+    reportWindow = new BrowserWindow({
+        width: 980,
+        height: 720,
+        minWidth: 760,
+        minHeight: 520,
+        title: 'M1-Transcoder — Gain & Loudness Report',
+        backgroundColor: '#282828',
+        webPreferences: { nodeIntegration: true, contextIsolation: false }
+    })
+    reportWindow.loadFile(path.join(__dirname, 'report', 'index.html'))
+    reportWindow.on('closed', function() {
+        reportWindow = null
+    })
+    return reportWindow
+}
+
+ipcMain.handle('batch:run', async (event, rawManifest, options = {}) => {
+    if (activeBatchRunner) {
+        throw new Error('A batch is already running.')
+    }
+    const sender = event.sender
+    activeBatchRunner = new BatchRunner({
+        toolchain: resolveToolchain({resourcesDirectory: process.resourcesPath}),
+        onEvent: (batchEvent) => {
+            if (!sender.isDestroyed()) sender.send('batch:event', batchEvent)
+        }
+    })
+    try {
+        const report = await activeBatchRunner.run(rawManifest, options)
+        latestReport = report
+        showReportWindow(report)
+        return report
+    } finally {
+        activeBatchRunner = null
+    }
+})
+
+ipcMain.handle('batch:cancel', async () => {
+    if (activeBatchRunner) activeBatchRunner.cancel()
+    return Boolean(activeBatchRunner)
+})
+
+ipcMain.handle('report:get-latest', async () => latestReport)
+
+ipcMain.handle('report:save', async (event, format) => {
+    if (!latestReport) throw new Error('No report is available.')
+    const extension = format === 'csv' ? 'csv' : 'json'
+    const result = await dialog.showSaveDialog({
+        defaultPath: `mach1-transcoder-report.${extension}`,
+        filters: [{name: extension.toUpperCase(), extensions: [extension]}]
+    })
+    if (result.canceled) return null
+    return format === 'csv'
+        ? saveCsvReport(result.filePath, latestReport)
+        : saveJsonReport(result.filePath, latestReport)
+})
+
+ipcMain.handle('report:show', async (event, report) => {
+    showReportWindow(report)
+    return true
+})
+
+ipcMain.handle('shell:reveal', async (event, filePath) => {
+    if (filePath) shell.showItemInFolder(filePath)
+    return true
+})
+
+ipcMain.handle('gain-report:analyze-single', async (event, request) => {
+    const outputFormat = getOutputFormatFromLegacyValue(request.outputFormatLegacyValue)
+    if (!outputFormat) throw new Error(`Unknown legacy output format: ${request.outputFormatLegacyValue}`)
+    const measurements = await analyzeFilePair({
+        inputPath: request.inputPath,
+        outputPath: request.outputPath,
+        inputFormat: request.inputFormat || 'm1spatial-8',
+        outputFormat: outputFormat.id,
+        proToolsOrder: request.proToolsOrder || 'none',
+        gainActions: request.gainActions,
+        toolchain: resolveToolchain({resourcesDirectory: process.resourcesPath})
+    })
+    const result = {
+        jobId: 'single-render',
+        status: 'completed',
+        inputPath: request.inputPath,
+        outputPath: request.outputPath,
+        inputFormat: request.inputFormat || 'm1spatial-8',
+        outputFormat: outputFormat.id,
+        gainActions: request.gainActions || {masterGainDb: 0, normalized: false},
+        measurements,
+        reviewRequired: measurements.reviewRequired,
+        warnings: measurements.warnings
+    }
+    const report = {
+        kind: 'mach1-transcoder.report',
+        schemaVersion: 1,
+        startedAt: new Date().toISOString(),
+        finishedAt: new Date().toISOString(),
+        referenceVersion: measurements.referenceVersion,
+        summary: {
+            total: 1,
+            completed: 1,
+            failed: 0,
+            cancelled: 0,
+            disabled: 0,
+            reviewRequired: result.reviewRequired ? 1 : 0
+        },
+        results: [result]
+    }
+    showReportWindow(report)
+    return report
+})
 
 function createWindow() {
     // Create the browser window.
@@ -201,7 +364,16 @@ function createWindow() {
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.on('ready', createWindow)
+const packagedBatchArgumentIndex = process.argv.indexOf('--batch')
+if (packagedBatchArgumentIndex >= 0) {
+    app.on('ready', async function() {
+        const {runCli} = require('./batch-cli')
+        const exitCode = await runCli(process.argv.slice(packagedBatchArgumentIndex))
+        app.exit(exitCode)
+    })
+} else {
+    app.on('ready', createWindow)
+}
 
 // Quit when all windows are closed.
 app.on('window-all-closed', function() {

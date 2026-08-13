@@ -1,0 +1,11 @@
+{
+  "snapshotVersion": 1,
+  "recipes": {
+    "minimumCount": 100,
+    "sourceSha256": "23fb01a85eb54ceb9b589aaa91d443a4d33dae385b46f849035226ffcaa670e2"
+  },
+  "processKinds": {
+    "count": 60,
+    "sourceSha256": "61ca9023b6cd9bf89d68d5e0a581c537934fcb96d7971375e58fc67d4e92903c"
+  }
+}
