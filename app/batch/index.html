@@ -29,6 +29,15 @@
 			<option value="multi-mono">Multi-Mono</option>
 		</select>
 		<button id="apply-output-layout-button">Apply Layout</button>
+		<select id="apply-multi-mono-index">
+			<option value="1">Multi-Mono starts at 1</option>
+			<option value="0">Multi-Mono starts at 0</option>
+		</select>
+		<select id="apply-multi-mono-placement">
+			<option value="flat">Multi-Mono files at destination</option>
+			<option value="folder">Multi-Mono in named folder</option>
+		</select>
+		<button id="apply-multi-mono-settings">Apply Multi-Mono Settings</button>
 		<button id="apply-folder">Apply Folder</button>
 	</nav>
 
@@ -88,6 +97,14 @@
 					<label>Collision<select data-field="collision">
 						<option value="fail">Refuse overwrite</option>
 						<option value="overwrite">Overwrite</option>
+					</select></label>
+					<label data-multi-mono-only>Multi-Mono First Index<select data-field="multi-mono-index">
+						<option value="1">Start at 1 (01, 02, ...)</option>
+						<option value="0">Start at 0 (00, 01, ...)</option>
+					</select></label>
+					<label data-multi-mono-only>Multi-Mono Destination<select data-field="multi-mono-placement">
+						<option value="flat">Files directly at destination</option>
+						<option value="folder">Folder named from destination</option>
 					</select></label>
 				</div>
 			</td>

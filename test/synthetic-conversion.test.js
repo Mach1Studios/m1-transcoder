@@ -122,6 +122,8 @@ test('multi-mono output publishes one mono file per channel and isolates empty i
 				id: 'multi-mono',
 				outputPath,
 				outputLayout: 'multi-mono',
+				multiMonoIndexBase: 0,
+				multiMonoPlacement: 'folder',
 				proToolsOrder: 'none',
 				reportsEnabled: true,
 			}),
@@ -142,6 +144,11 @@ test('multi-mono output publishes one mono file per channel and isolates empty i
 		const completed = report.results.find((result) => result.jobId === 'multi-mono');
 		assert.equal(completed.outputLayout, 'multi-mono');
 		assert.equal(completed.outputs.length, 4);
+		assert.deepEqual(
+			completed.outputs.map((output) => path.basename(output)),
+			['multi-mono_00.wav', 'multi-mono_01.wav', 'multi-mono_02.wav', 'multi-mono_03.wav']
+		);
+		assert.equal(path.dirname(completed.outputs[0]), path.join(directory, 'multi-mono'));
 		for (const output of completed.outputs) {
 			assert.equal((await probeMedia(output, toolchain)).audioStreams[0].channels, 1);
 		}

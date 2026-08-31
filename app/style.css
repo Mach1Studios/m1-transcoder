@@ -8,6 +8,14 @@ body {
   font-family: "InterRegular";
 }
 
+body.multi-mono-settings-visible {
+  overflow-y: auto;
+}
+
+.multi-mono-setting {
+  display: none;
+}
+
 .topnav {
   position: fixed;
   top: 0;

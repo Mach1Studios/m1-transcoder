@@ -51,6 +51,12 @@ function outputPathFor(job) {
 	return resolveOutputPath(job, outputFormat, fileProfile, process.cwd());
 }
 
+function isMultiMonoJob(job) {
+	const outputFormat = OUTPUT_FORMATS.find((format) => format.id === job.output.format);
+	return job.output.layout === 'multi-mono'
+		|| (outputFormat && outputFormat.packaging === 'multi-mono');
+}
+
 function setBatchState(text, isRunning = false) {
 	const state = document.getElementById('batch-state');
 	state.textContent = text;
@@ -103,11 +109,16 @@ function renderInspector(job) {
 		'custom-json': ['input', () => fieldValue(job.inputs.customFormatJson), (value) => { job.inputs.customFormatJson = value || null; }],
 		video: ['input', () => fieldValue(job.inputs.video), (value) => { job.inputs.video = value || null; }],
 		collision: ['select', () => job.output.collision, (value) => { job.output.collision = value; }],
+		'multi-mono-index': ['select', () => job.output.multiMono.indexBase, (value) => { job.output.multiMono.indexBase = Number(value); }],
+		'multi-mono-placement': ['select', () => job.output.multiMono.placement, (value) => { job.output.multiMono.placement = value; }],
 	};
 	for (const [field, [, getter, setter]] of Object.entries(bindings)) {
 		const control = row.querySelector(`[data-field="${field}"]`);
 		control.value = getter();
 		control.addEventListener('change', () => setter(control.value));
+	}
+	for (const control of row.querySelectorAll('[data-multi-mono-only]')) {
+		control.hidden = !isMultiMonoJob(job);
 	}
 	return fragment;
 }
@@ -299,6 +310,24 @@ function applyOutputLayout() {
 	render();
 }
 
+function applyMultiMonoSettings() {
+	const indexBase = Number(document.getElementById('apply-multi-mono-index').value);
+	const placement = document.getElementById('apply-multi-mono-placement').value;
+	let updated = 0;
+
+	for (const job of jobs) {
+		if (!selectedIds.has(job.id) || !isMultiMonoJob(job)) continue;
+		job.output.multiMono.indexBase = indexBase;
+		job.output.multiMono.placement = placement;
+		updated += 1;
+	}
+
+	if (!updated) {
+		setBatchState('Select at least one multi-mono row');
+	}
+	render();
+}
+
 function setRunning(value) {
 	running = value;
 	document.getElementById('run').disabled = value;
@@ -360,6 +389,7 @@ document.getElementById('save-manifest').addEventListener('click', saveManifest)
 document.getElementById('apply-folder').addEventListener('click', applyFolder);
 document.getElementById('apply-format-button').addEventListener('click', applyFormat);
 document.getElementById('apply-output-layout-button').addEventListener('click', applyOutputLayout);
+document.getElementById('apply-multi-mono-settings').addEventListener('click', applyMultiMonoSettings);
 document.getElementById('run').addEventListener('click', runBatch);
 document.getElementById('cancel').addEventListener('click', () => ipcRenderer.invoke('batch:cancel'));
 document.getElementById('clear-completed').addEventListener('click', () => {

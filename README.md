@@ -45,9 +45,11 @@ manifests. Outputs default to the input folder with the selected format appended
 source name. The batch runner processes rows sequentially, continues after a row failure,
 and refuses collisions unless overwrite is explicitly selected. The **Output Layout**
 column selects a single interleaved multichannel file or one numbered mono file per
-channel. Multi-mono output requires uncompressed WAV or AIF and publishes files with
-`_01`, `_02`, and subsequent channel suffixes. JSON manifests use
-`output.layout: "multichannel"` or `"multi-mono"`.
+channel. Multi-mono output requires uncompressed WAV or AIF. The toolbar and expanded
+row settings select a first channel index of 0 or 1 and either flat destination placement
+or a folder named from the destination. Batch defaults remain flat with `_01`, `_02`, and
+subsequent channel suffixes. JSON manifests use `output.layout: "multi-mono"` with
+`output.multiMono.indexBase` and `output.multiMono.placement`.
 
 The same manifest can run without the UI:
 

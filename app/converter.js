@@ -3,11 +3,50 @@ document.addEventListener('dragover', event => event.preventDefault())
 document.addEventListener('drop', event => event.preventDefault())
 
 $(document).ready(async function() {
+	const { resolveMultiMonoOutputDirectory } = require('../lib/planning/multiMonoOutput');
+
 	window.inputAudioFiles = [];
 	window.inputStereoFiles = [];
 	window.inputVideoFiles = [];
 	window.inputJsonFiles = [];
 
+	const MULTI_MONO_SETTINGS_STORAGE_KEY = 'm1-transcoder.multi-mono-output';
+
+	function getMultiMonoOutputSettings() {
+		return {
+			indexBase: $('#MultiMonoIndexBase').val() === '1' ? 1 : 0,
+			useSubfolder: $('#MultiMonoPlacement').val() === 'folder',
+		};
+	}
+
+	function loadMultiMonoOutputSettings() {
+		try {
+			const saved = JSON.parse(localStorage.getItem(MULTI_MONO_SETTINGS_STORAGE_KEY) || '{}');
+			$('#MultiMonoIndexBase').val(saved.indexBase === 1 ? '1' : '0');
+			$('#MultiMonoPlacement').val(saved.useSubfolder === true ? 'folder' : 'flat');
+		} catch (error) {
+			log.warn('Unable to load multi-mono output settings:', error);
+		}
+	}
+
+	function saveMultiMonoOutputSettings() {
+		try {
+			localStorage.setItem(
+				MULTI_MONO_SETTINGS_STORAGE_KEY,
+				JSON.stringify(getMultiMonoOutputSettings())
+			);
+		} catch (error) {
+			log.warn('Unable to save multi-mono output settings:', error);
+		}
+	}
+
+	function updateMultiMonoSettingsVisibility() {
+		const isMultiMonoOutput = $('#OutputType option:selected').val() === '25';
+		$('.multi-mono-setting').toggle(isMultiMonoOutput);
+		$('body').toggleClass('multi-mono-settings-visible', isMultiMonoOutput);
+	}
+
+	loadMultiMonoOutputSettings();
 	inputVideoEmpty = true;
 	inputStereoEmpty = true;
 	updateUIInputOptionsDependingOnSelectedFileTypes();
@@ -19,6 +58,8 @@ $(document).ready(async function() {
 	$("select, input").change(function() {
 		HideMessage();
 	});
+
+	$('.multi-mono-setting select').on('change', saveMultiMonoOutputSettings);
 
 	document.body.ondragover = () => {
 		$('#dragAudio,#dragStereo,#dragJson,#dragVideo').show();
@@ -715,6 +756,8 @@ $(document).ready(async function() {
 				$("#OutputFileType select").val('3');
 			}
 		}
+
+		updateMultiMonoSettingsVisibility();
 	}
 
 	$('#OutputType select').on('change', function(e) {
@@ -1050,6 +1093,7 @@ $(document).ready(async function() {
 
 			var selectedOutputType = $('#OutputType option:selected').val();
 			var selectedOutputFileType = $('#OutputFileType option:selected').val();
+			var multiMonoOutputSettings = getMultiMonoOutputSettings();
 
 			// TODO: use only this global var
 			window.selectedOutputType = selectedOutputType;
@@ -1158,7 +1202,12 @@ $(document).ready(async function() {
 			} else {
 				outputVideoFilename = outputVideoFilename.concat("." + preferredExtension);
 			}
-			window.outputFilename = outputVideoFilename;
+			window.outputFilename = selectedOutputType === OutputTypes.MACH1SDKUNITYUNREAL
+				? resolveMultiMonoOutputDirectory(
+					outputVideoFilename,
+					multiMonoOutputSettings.useSubfolder
+				)
+				: outputVideoFilename;
 			log.info("Output File Type: " + selectedOutputFileType + ", with File Extension: " + preferredExtension)
 			log.info("Output File name is " + outputVideoFilename + " now");
 
@@ -6412,8 +6461,10 @@ $(document).ready(async function() {
 					},
 					{
 						process_kind: 'copy_to_output_dir_m4a',
-						output_dir: outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf('/')) + '/',
+						output_path: outputVideoFilename,
 						channel_count: getChannelCount(window.inputAudioFiles[0]),
+						index_base: multiMonoOutputSettings.indexBase,
+						use_subfolder: multiMonoOutputSettings.useSubfolder,
 					},
 					],
 				},
@@ -6436,8 +6487,10 @@ $(document).ready(async function() {
 					},
 					{
 						process_kind: 'copy_to_output_dir_ogg',
-						output_dir: outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf('/')) + '/',
+						output_path: outputVideoFilename,
 						channel_count: getChannelCount(window.inputAudioFiles[0]),
+						index_base: multiMonoOutputSettings.indexBase,
+						use_subfolder: multiMonoOutputSettings.useSubfolder,
 					},
 					],
 				},
@@ -6460,8 +6513,10 @@ $(document).ready(async function() {
 					},
 					{
 						process_kind: 'copy_to_output_dir_wav',
-						output_dir: outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf('/')) + '/',
+						output_path: outputVideoFilename,
 						channel_count: getChannelCount(window.inputAudioFiles[0]),
+						index_base: multiMonoOutputSettings.indexBase,
+						use_subfolder: multiMonoOutputSettings.useSubfolder,
 					},
 					],
 				},
@@ -6966,7 +7021,7 @@ $(document).ready(async function() {
 						try {
 							const evaluatedValue = step[key](); // Evaluate the function
 							// Replace any output filename with batch-specific filename
-							if ((key === 'output_filename' || key === 'output_video') && evaluatedValue) {
+							if ((key === 'output_filename' || key === 'output_video' || key === 'output_path') && evaluatedValue) {
 								processedStep[key] = outputFilename;
 							} else {
 								processedStep[key] = evaluatedValue;
@@ -6978,7 +7033,7 @@ $(document).ready(async function() {
 						}
 					} else {
 						// Replace any output filename with batch-specific filename
-						if ((key === 'output_filename' || key === 'output_video') && step[key]) {
+						if ((key === 'output_filename' || key === 'output_video' || key === 'output_path') && step[key]) {
 							// Check if it's the base output filename or contains the output path
 							if (step[key] === outputVideoFilename || step[key].includes(outputVideoFilename.substring(0, outputVideoFilename.lastIndexOf('.')))) {
 								processedStep[key] = outputFilename;
@@ -7096,7 +7151,12 @@ $(document).ready(async function() {
 
 			// Clean up and show result
 			if (overallSuccess) {
-				if (!isBatchMode && inputAudioFilename && outputVideoFilename) {
+				if (
+					!isBatchMode
+					&& selectedOutputType !== OutputTypes.MACH1SDKUNITYUNREAL
+					&& inputAudioFilename
+					&& outputVideoFilename
+				) {
 					const outputFormatLegacyValue = $('#OutputType option:selected').val();
 					const resolvedInputFormat = window.trim_to
 						? window.trim_to.toLowerCase().replace('mach1spatial-', 'm1spatial-')

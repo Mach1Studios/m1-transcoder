@@ -4,6 +4,10 @@ const exec = util.promisify(require('child_process').exec);
 var child_process = require('child_process');
 const log = require('electron-log');
 const { getStereoFoldDownFilter } = require('./stereoFoldDown');
+const {
+	createMultiMonoOutputPlan,
+	ensureMultiMonoOutputDirectory,
+} = require('../lib/planning/multiMonoOutput');
 log.catchErrors(options = {});
 
 // $(document).ready(function() {
@@ -740,30 +744,44 @@ function runProcess(processData) {
 			break;
 
 		case "copy_to_output_dir_wav":
-    		log.info(" executing " + processData["process_kind"]);
-    		var call = ["cd", tempDir, "&&"];
+			log.info(" executing " + processData["process_kind"]);
+			var outputPlan = createMultiMonoOutputPlan({
+				outputPath: processData["output_path"],
+				channelCount: processData["channel_count"],
+				extension: "wav",
+				indexBase: processData["index_base"],
+				useSubfolder: processData["use_subfolder"],
+			});
+			ensureMultiMonoOutputDirectory(outputPlan.outputDirectory);
+			var call = ["cd", tempDir, "&&"];
 
-    		for (var i = 0; i < processData["channel_count"]; i++) {
-      		    var fileName = i.toString().padStart(3, '0') + ".wav";
-    		    call.push("mv", fileName, escapingPath(processData["output_dir"] + fileName), "&&");
-    		}
-    
-    		call.pop();
+			for (var outputFile of outputPlan.files) {
+				call.push("mv", outputFile.sourceFileName, escapingPath(outputFile.outputPath), "&&");
+			}
 
-    		var callString = call.join(' ');
-    		return runExec(callString);
-    		break;
+			call.pop();
+
+			var callString = call.join(' ');
+			return runExec(callString);
+			break;
 
 
 		case "copy_to_output_dir_m4a":
 			log.info(" executing " + processData["process_kind"]);
+			var outputPlan = createMultiMonoOutputPlan({
+				outputPath: processData["output_path"],
+				channelCount: processData["channel_count"],
+				extension: "m4a",
+				indexBase: processData["index_base"],
+				useSubfolder: processData["use_subfolder"],
+			});
+			ensureMultiMonoOutputDirectory(outputPlan.outputDirectory);
 			var call = ["cd", tempDir, "&&"];
 			
-			for (var i = 0; i < processData["channel_count"]; i++) {
-				var fileName = i.toString().padStart(3, '0');
+			for (var outputFile of outputPlan.files) {
 				call.push(
-					ffmpeg, "-i", fileName + ".wav", "-c:a aac -b:a 128k -q:a 10", 
-					escapingPath(processData["output_dir"] + fileName + ".m4a"), 
+					ffmpeg, "-y -i", outputFile.sourceFileName, "-c:a aac -b:a 128k -q:a 10",
+					escapingPath(outputFile.outputPath),
 					"&&"
 				);
 			}
@@ -776,13 +794,20 @@ function runProcess(processData) {
 			
 		case "copy_to_output_dir_ogg":
 			log.info(" executing " + processData["process_kind"]);
+			var outputPlan = createMultiMonoOutputPlan({
+				outputPath: processData["output_path"],
+				channelCount: processData["channel_count"],
+				extension: "ogg",
+				indexBase: processData["index_base"],
+				useSubfolder: processData["use_subfolder"],
+			});
+			ensureMultiMonoOutputDirectory(outputPlan.outputDirectory);
 			var call = ["cd", tempDir, "&&"];
 			
-			for (var i = 0; i < processData["channel_count"]; i++) {
-				var fileName = i.toString().padStart(3, '0');
+			for (var outputFile of outputPlan.files) {
 				call.push(
-					ffmpeg, "-i", fileName + ".wav", "-c:a libvorbis -q:a 10", 
-					escapingPath(processData["output_dir"] + fileName + ".ogg"), 
+					ffmpeg, "-y -i", outputFile.sourceFileName, "-c:a libvorbis -q:a 10",
+					escapingPath(outputFile.outputPath),
 					"&&"
 				);
 			}

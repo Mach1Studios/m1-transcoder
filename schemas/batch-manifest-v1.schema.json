@@ -112,7 +112,15 @@
             "path": {"type": ["string", "null"]},
             "directory": {"type": ["string", "null"]},
             "basename": {"type": ["string", "null"]},
-            "collision": {"enum": ["fail", "overwrite"]}
+            "collision": {"enum": ["fail", "overwrite"]},
+            "multiMono": {
+              "type": "object",
+              "properties": {
+                "indexBase": {"enum": [0, 1]},
+                "placement": {"enum": ["flat", "folder"]}
+              },
+              "additionalProperties": false
+            }
           },
           "additionalProperties": false
         },

@@ -64,6 +64,19 @@ test('manifest validation refuses collisions and missing required assets', () =>
 			() => validateManifest(normalizeManifest(createManifest([videoJob]))),
 			/requires a video input/
 		);
+
+		const invalidMultiMonoJob = createJob(files.inputPath, {
+			id: 'invalid-multi-mono',
+			outputLayout: 'multi-mono',
+		});
+		invalidMultiMonoJob.output.multiMono = {
+			indexBase: 2,
+			placement: 'adjacent',
+		};
+		assert.throws(
+			() => validateManifest(normalizeManifest(createManifest([invalidMultiMonoJob]))),
+			/output\.multiMono\.indexBase must be 0 or 1/
+		);
 	} finally {
 		files.cleanup();
 	}
@@ -106,6 +119,8 @@ test('output layout plans multichannel or multi-mono packaging explicitly', () =
 		const multiMonoJob = createJob(files.inputPath, {
 			id: 'multi-mono',
 			outputLayout: 'multi-mono',
+			multiMonoIndexBase: 0,
+			multiMonoPlacement: 'folder',
 		});
 		const manifest = validateManifest(normalizeManifest(createManifest([multiMonoJob])));
 		const plan = buildJobPlan(
@@ -115,6 +130,19 @@ test('output layout plans multichannel or multi-mono packaging explicitly', () =
 		);
 		assert.equal(plan.outputLayout, 'multi-mono');
 		assert.equal(plan.stages.at(-1).outputLayout, 'multi-mono');
+		assert.deepEqual(plan.stages.at(-1).multiMono, {
+			indexBase: 0,
+			placement: 'folder',
+		});
+
+		const defaultMultiMonoJob = createJob(files.inputPath, {
+			id: 'default-multi-mono',
+			outputLayout: 'multi-mono',
+		});
+		assert.deepEqual(defaultMultiMonoJob.output.multiMono, {
+			indexBase: 1,
+			placement: 'flat',
+		});
 
 		const compressedJob = createJob(files.inputPath, {
 			id: 'compressed-multi-mono',

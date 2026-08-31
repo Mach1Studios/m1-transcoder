@@ -146,6 +146,26 @@ TODO: Add aif  -->
 			</div>
 		</label>
 
+		<label class="dropdown multi-mono-setting" id="MultiMonoIndexSetting">
+			<div>Multi-Mono First Channel Index</div>
+			<div class="input-wrapper">
+				<select id="MultiMonoIndexBase" size="1" style="border-right: 10px solid transparent">
+					<option value="0" selected>Start at 0 (000, 001, ...)</option>
+					<option value="1">Start at 1 (001, 002, ...)</option>
+				</select>
+			</div>
+		</label>
+
+		<label class="dropdown multi-mono-setting" id="MultiMonoPlacementSetting">
+			<div>Multi-Mono Destination</div>
+			<div class="input-wrapper">
+				<select id="MultiMonoPlacement" size="1" style="border-right: 10px solid transparent">
+					<option value="flat" selected>Place files directly at destination</option>
+					<option value="folder">Create a folder named from destination</option>
+				</select>
+			</div>
+		</label>
+
 		<label class="text">
 			<div class="input-wrapper" style="margin-top: 15px; margin-bottom: 10px;">
 				<input type="submit" id="Render" value="Render">
