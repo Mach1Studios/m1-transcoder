@@ -39,7 +39,7 @@ npm run package-win
 
 ### Batch conversion
 
-Open **File → Batch Convert…** to add one row per dropped input, set per-row formats and
+Open **View → Batch Convert…** to add one row per dropped input, set per-row formats and
 destinations, attach optional stereo/JSON/video assets, and save or load versioned JSON
 manifests. Outputs default to the input folder with the selected format appended to the
 source name. The batch runner processes rows sequentially, continues after a row failure,

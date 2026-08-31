@@ -105,15 +105,7 @@ log.info("Log Path: "+dataPath+"logs/M1-Transcoder.log");
 const menuTemplate = [
     {
         label: 'File',
-        submenu: [      
-            {
-                label: 'Batch Convert…',
-                accelerator: 'CmdOrCtrl+Shift+B',
-                click: function() { createBatchWindow() }
-            },
-            {
-                type: 'separator'
-            },
+        submenu: [
             {
                 role: 'quit',
                 label: 'Quit',
@@ -125,6 +117,14 @@ const menuTemplate = [
     {
         label: 'View',
         submenu: [
+            {
+                label: 'Batch Convert…',
+                accelerator: 'CmdOrCtrl+Shift+B',
+                click: function() { createBatchWindow() }
+            },
+            {
+                type: 'separator'
+            },
             {
                 role: 'reload'
             },
